@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rentle-postgres
+    environment:
+      POSTGRES_DB: rentle
+      POSTGRES_USER: rentle
+      POSTGRES_PASSWORD: dev_password
+    ports:
+      - "5433:5432"   # host 5433 — 5432 commonly taken by other local stacks
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rentle -d rentle"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: rentle-redis
+    ports:
+      - "6380:6379"   # host 6380 — 6379 commonly taken by local redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
