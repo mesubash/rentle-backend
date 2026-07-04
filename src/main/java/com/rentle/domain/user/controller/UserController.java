@@ -1,0 +1,56 @@
+package com.rentle.domain.user.controller;
+
+import com.rentle.domain.user.dto.PublicProfileResponse;
+import com.rentle.domain.user.dto.UpdateProfileRequest;
+import com.rentle.domain.user.dto.UserProfileResponse;
+import com.rentle.domain.user.service.UserService;
+import com.rentle.shared.api.ApiResponse;
+import com.rentle.shared.security.SecurityUtils;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/v1/users")
+public class UserController {
+
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    @GetMapping("/me")
+    public ApiResponse<UserProfileResponse> me() {
+        return ApiResponse.ok(userService.getMe(SecurityUtils.currentUserId()));
+    }
+
+    @PutMapping("/me")
+    public ApiResponse<UserProfileResponse> updateMe(@Valid @RequestBody UpdateProfileRequest request) {
+        return ApiResponse.ok(userService.updateProfile(SecurityUtils.currentUserId(), request));
+    }
+
+    @PostMapping("/me/photo")
+    public ApiResponse<UserProfileResponse> uploadPhoto(@RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok(userService.uploadProfilePhoto(SecurityUtils.currentUserId(), file));
+    }
+
+    @PostMapping("/me/citizenship")
+    public ApiResponse<UserProfileResponse> uploadCitizenship(@RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok(userService.uploadCitizenshipCard(SecurityUtils.currentUserId(), file));
+    }
+
+    @GetMapping("/{id}")
+    public ApiResponse<PublicProfileResponse> publicProfile(@PathVariable UUID id) {
+        return ApiResponse.ok(userService.getPublicProfile(id));
+    }
+}
