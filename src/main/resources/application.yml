@@ -47,11 +47,17 @@ rentle:
   local-upload-dir: ${RENTLE_UPLOAD_DIR:uploads}
   sms: ${RENTLE_SMS:logging}
   private-upload-dir: ${RENTLE_PRIVATE_UPLOAD_DIR:private-uploads}
+  app-url: ${RENTLE_APP_URL:http://localhost:3000}
+  api-base-url: ${RENTLE_API_BASE_URL:http://localhost:8080}
+  # Dev delivery for OTP codes and email verification links (no SMS/email provider yet).
+  discord-webhook: ${RENTLE_DISCORD_WEBHOOK:}
 
-# Google Sign-In: set GOOGLE_CLIENT_ID to your OAuth 2.0 Web client id to enable
-# /auth/google (the same id the frontend uses as NEXT_PUBLIC_GOOGLE_CLIENT_ID).
+# Backend-driven Google OAuth (Authorization Code flow — no client config in the
+# frontend). Set all three to enable /auth/google/login.
 google:
   client-id: ${GOOGLE_CLIENT_ID:}
+  client-secret: ${GOOGLE_CLIENT_SECRET:}
+  redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/v1/auth/google/callback}
 
 jwt:
   # PEM strings; blank = ephemeral dev keypair generated at startup

@@ -5,6 +5,7 @@ import com.rentle.domain.user.dto.PublicProfileResponse;
 import com.rentle.domain.user.dto.SetPhoneRequest;
 import com.rentle.domain.user.dto.UpdateProfileRequest;
 import com.rentle.domain.user.dto.UserProfileResponse;
+import com.rentle.domain.user.service.EmailVerificationService;
 import com.rentle.domain.user.service.OtpService;
 import com.rentle.domain.user.service.UserService;
 import com.rentle.shared.api.ApiResponse;
@@ -31,10 +32,14 @@ public class UserController {
 
     private final UserService userService;
     private final OtpService otpService;
+    private final EmailVerificationService emailVerificationService;
 
-    public UserController(UserService userService, OtpService otpService) {
+    public UserController(UserService userService,
+                          OtpService otpService,
+                          EmailVerificationService emailVerificationService) {
         this.userService = userService;
         this.otpService = otpService;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @GetMapping("/me")
@@ -69,16 +74,11 @@ public class UserController {
         return ApiResponse.ok(userService.getMe(SecurityUtils.currentUserId()));
     }
 
-    @PostMapping("/me/email/otp/send")
-    public ApiResponse<String> sendEmailOtp() {
-        otpService.sendEmailOtp(SecurityUtils.currentUserId());
-        return ApiResponse.ok("Verification code sent");
-    }
-
-    @PostMapping("/me/email/otp/verify")
-    public ApiResponse<UserProfileResponse> verifyEmail(@Valid @RequestBody CodeRequest request) {
-        otpService.verifyEmailOtp(SecurityUtils.currentUserId(), request.code());
-        return ApiResponse.ok(userService.getMe(SecurityUtils.currentUserId()));
+    /** Re-send the email verification link (verification itself happens by opening it). */
+    @PostMapping("/me/email/verify/send")
+    public ApiResponse<String> sendEmailVerification() {
+        emailVerificationService.sendLinkToCurrentUser(SecurityUtils.currentUserId());
+        return ApiResponse.ok("Verification link sent");
     }
 
     @GetMapping("/me/citizenship")

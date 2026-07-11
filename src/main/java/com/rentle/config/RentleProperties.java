@@ -11,5 +11,8 @@ public record RentleProperties(
         String storage,
         String localUploadDir,
         String privateUploadDir,
-        String sms
+        String sms,
+        String appUrl,          // frontend base URL, for email verification links + OAuth return
+        String apiBaseUrl,      // backend base URL, for the Google OAuth redirect URI
+        String discordWebhook   // dev delivery channel for OTPs and email links (no SMS/email provider yet)
 ) {}

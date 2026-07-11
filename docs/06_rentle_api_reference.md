@@ -20,11 +20,13 @@ after completion.
   - [1.6 Data types & enums](#16-data-types--enums)
 - [2. Authentication](#2-authentication)
   - [POST /auth/register](#post-authregister)
+  - [POST /auth/register/verify](#post-authregisterverify)
+  - [POST /auth/register/resend](#post-authregisterresend)
   - [POST /auth/login](#post-authlogin)
+  - [Google sign-in (backend-driven)](#google-sign-in-backend-driven)
+  - [GET /auth/verify-email](#get-authverify-email)
   - [POST /auth/refresh](#post-authrefresh)
   - [POST /auth/logout](#post-authlogout)
-  - [POST /auth/otp/send](#post-authotpsend)
-  - [POST /auth/otp/verify](#post-authotpverify)
 - [3. Users & profiles](#3-users--profiles)
   - [GET /users/me](#get-usersme)
   - [PUT /users/me](#put-usersme)
@@ -196,8 +198,10 @@ Redis-backed, fixed-window. Exceeding a limit returns `429`.
 
 ### POST /auth/register
 
-Create an account. Returns tokens immediately; the account starts
-`PENDING_VERIFICATION` and an OTP is dispatched to the phone.
+**Step 1 of two.** Registration is gated on phone verification: this endpoint does
+**not** create an account. It validates the details, holds them for 15 minutes, and
+sends a phone OTP. The account is created only by
+[`/auth/register/verify`](#post-authregisterverify).
 
 **Auth:** public · **Body:**
 
@@ -208,30 +212,24 @@ Create an account. Returns tokens immediately; the account starts
 | `password` | string | required, 8–72 chars |
 | `fullName` | string | required, 2–100 |
 
-```http
-POST /api/v1/auth/register
-Content-Type: application/json
-
-{ "phoneNumber": "+9779841000001", "email": "sita@example.com",
-  "password": "password123", "fullName": "Sita Gurung" }
-```
-
-**`201 Created`** → [`AuthResponse`](#authresponse):
-
-```json
-{ "data": {
-    "accessToken": "eyJ...", "refreshToken": "b1c2...", "tokenType": "Bearer",
-    "expiresIn": 900,
-    "user": { "id": "4aa3...", "phoneNumber": "+9779841000001",
-      "email": "sita@example.com", "fullName": "Sita Gurung",
-      "role": "USER", "status": "PENDING_VERIFICATION",
-      "phoneVerified": false, "citizenshipVerified": false,
-      "citizenshipUploaded": false, "trustScore": null,
-      "createdAt": "2026-07-11T08:52:00Z" } },
-  "error": null, "timestamp": "2026-07-11T08:52:00Z" }
-```
-
+**`200 OK`** → `{ "data": { "phoneNumber": "...", "otpRequired": true,
+"expiresInSeconds": 900, "message": "..." }, ... }`. No account and no tokens yet.
 **Errors:** `400` phone/email already registered or validation failure.
+
+### POST /auth/register/verify
+
+**Step 2.** Verify the phone OTP; on success the account is created (`phoneVerified:
+true`, email unverified) and a session is issued. An email verification link is sent
+(email can be confirmed later — it never blocks sign-up).
+
+**Auth:** public · **Body:** `{ "phoneNumber": "...", "code": "482910" }`
+**`201 Created`** → [`AuthResponse`](#authresponse).
+**Errors:** `400` wrong/expired code · registration expired · already registered.
+
+### POST /auth/register/resend
+
+Resend the registration OTP while a pending signup exists.
+**Auth:** public · **Body:** `{ "phoneNumber": "..." }` · **`200 OK`** → `{ "data": "Verification code sent", ... }`.
 
 ### POST /auth/login
 
@@ -239,22 +237,35 @@ Content-Type: application/json
 
 **`200 OK`** → [`AuthResponse`](#authresponse).
 **Errors:** `401` invalid credentials · account locked (5 failed attempts) ·
-suspended. `429` too many attempts.
+suspended · Google-only account (no password). `429` too many attempts.
 
-### POST /auth/google
+### Google sign-in (backend-driven)
 
-Sign in with a Google ID token obtained by the frontend from Google Identity
-Services. The token is verified against Google's JWKS (signature, issuer,
-audience). Matches an existing account by Google id or email, else creates one
-(email marked verified from Google, no phone/password yet). Requires
-`GOOGLE_CLIENT_ID` to be configured.
+Google uses the Authorization Code flow entirely on the backend — the frontend holds
+no Google client id or secret. Requires `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+`GOOGLE_REDIRECT_URI`.
 
-**Auth:** public · **Body:** `{ "idToken": "<google id token>" }`
-**`200 OK`** → [`AuthResponse`](#authresponse). **Errors:** `401` invalid token ·
-`400` Google sign-in not configured.
+- **`GET /auth/google/status`** (public) → `{ "enabled": bool, "loginUrl": "..." }`.
+  The app shows the button and links it to `loginUrl` only when enabled.
+- **`GET /auth/google/login`** (public) → 302 to Google's consent screen (or back to
+  the app with `?error=google_unavailable` if unconfigured).
+- **`GET /auth/google/callback?code&state`** (public) — Google returns here; the
+  backend validates state, exchanges the code with the client secret, resolves/links
+  the account, then 302s to the app at `/auth/google/callback?code=<handoff>` with a
+  one-time handoff code.
+- **`POST /auth/google/exchange`** — Body `{ "code": "<handoff>" }` → [`AuthResponse`](#authresponse).
+  The app swaps the handoff for a session (BFF stores the cookies). No token ever
+  rides in a URL.
 
 A Google account has no phone; the user must add and verify one
 ([`POST /users/me/phone`](#post-usersmephone)) before booking or listing.
+
+### GET /auth/verify-email
+
+Opened from the email verification link. Consumes the token, marks the email verified,
+and redirects to the app at `/auth/verify-email?status=success|invalid`.
+
+**Auth:** public (token in query) · **Query:** `token` · **Response:** `302` redirect.
 
 ### POST /auth/refresh
 
@@ -274,23 +285,8 @@ Revoke the current access token and delete the refresh token.
 
 **`200 OK`** → `{ "data": "Logged out", "error": null, ... }`
 
-### POST /auth/otp/send
-
-Send a 6-digit OTP by SMS to a registered phone. Limited to 3/hour/phone.
-
-**Auth:** public · **Body:** `{ "phoneNumber": "+9779841000001" }`
-
-**`200 OK`** → `{ "data": "OTP sent", ... }`
-**Errors:** `404` no account with that phone · `400` rate limit reached.
-
-### POST /auth/otp/verify
-
-Verify the OTP and mark the phone verified.
-
-**Auth:** public · **Body:** `{ "phoneNumber": "+9779841000001", "code": "482910" }`
-
-**`200 OK`** → `{ "data": "Phone verified", ... }`
-**Errors:** `400` invalid or expired OTP.
+> **Dev delivery:** with no SMS/email provider wired, OTP codes and email links are
+> logged and mirrored to a Discord webhook (`RENTLE_DISCORD_WEBHOOK`) for testing.
 
 ---
 
@@ -336,15 +332,11 @@ users to add a phone. Rejects a number already used by another account.
 Verify the OTP for the caller's current phone → `phoneVerified`.
 **Auth:** bearer · **Body:** `{ "code": "482910" }` · **`200 OK`** → [`UserProfile`](#userprofile).
 
-### POST /users/me/email/otp/send
+### POST /users/me/email/verify/send
 
-Send a 6-digit verification code to the caller's email.
-**Auth:** bearer · **`200 OK`** → `{ "data": "Verification code sent", ... }`. **Errors:** `400` already verified / rate limited.
-
-### POST /users/me/email/otp/verify
-
-Verify the email code → `emailVerified`.
-**Auth:** bearer · **Body:** `{ "code": "482910" }` · **`200 OK`** → [`UserProfile`](#userprofile).
+(Re)send the email verification link. Verification itself happens by opening the link
+([`GET /auth/verify-email`](#get-authverify-email)), not by entering a code.
+**Auth:** bearer · **`200 OK`** → `{ "data": "Verification link sent", ... }`. **Errors:** `400` already verified.
 
 The document is stored privately (never under the public `/files` path) and is only
 retrievable through the two authenticated endpoints below.

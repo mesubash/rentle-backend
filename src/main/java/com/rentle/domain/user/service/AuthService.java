@@ -4,6 +4,7 @@ import com.rentle.config.JwtProperties;
 import com.rentle.domain.user.dto.AuthResponse;
 import com.rentle.domain.user.dto.LoginRequest;
 import com.rentle.domain.user.dto.RegisterRequest;
+import com.rentle.domain.user.dto.RegistrationResponse;
 import com.rentle.domain.user.dto.UserProfileResponse;
 import com.rentle.domain.user.model.User;
 import com.rentle.domain.user.model.UserStatus;
@@ -33,6 +34,8 @@ public class AuthService {
     private static final Duration LOCK_DURATION = Duration.ofMinutes(15);
     private static final String REFRESH_PREFIX = "refresh:";
     private static final String BLACKLIST_PREFIX = "bl:";
+    private static final String PENDING_PREFIX = "pendingreg:";
+    private static final Duration PENDING_TTL = Duration.ofMinutes(15);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -40,6 +43,7 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final StringRedisTemplate redis;
     private final OtpService otpService;
+    private final EmailVerificationService emailVerificationService;
     private final RateLimitService rateLimitService;
     private final GoogleTokenVerifier googleTokenVerifier;
 
@@ -49,6 +53,7 @@ public class AuthService {
                        JwtProperties jwtProperties,
                        StringRedisTemplate redis,
                        OtpService otpService,
+                       EmailVerificationService emailVerificationService,
                        RateLimitService rateLimitService,
                        GoogleTokenVerifier googleTokenVerifier) {
         this.userRepository = userRepository;
@@ -57,12 +62,17 @@ public class AuthService {
         this.jwtProperties = jwtProperties;
         this.redis = redis;
         this.otpService = otpService;
+        this.emailVerificationService = emailVerificationService;
         this.rateLimitService = rateLimitService;
         this.googleTokenVerifier = googleTokenVerifier;
     }
 
-    @Transactional
-    public AuthResponse register(RegisterRequest req) {
+    /**
+     * Step 1 of registration: validate, stash the pending signup, and send a phone
+     * OTP. No account or token is created until {@link #completeRegistration} — an
+     * unverified phone can never become a usable account.
+     */
+    public RegistrationResponse register(RegisterRequest req) {
         if (userRepository.existsByPhoneNumber(req.phoneNumber())) {
             throw new RentleException("Phone number already registered");
         }
@@ -70,18 +80,53 @@ public class AuthService {
             throw new RentleException("Email already registered");
         }
 
+        String key = PENDING_PREFIX + req.phoneNumber();
+        redis.opsForHash().putAll(key, java.util.Map.of(
+                "email", req.email(),
+                "passwordHash", passwordEncoder.encode(req.password()),
+                "fullName", req.fullName()));
+        redis.expire(key, PENDING_TTL);
+
+        otpService.sendPhoneCode(req.phoneNumber());
+        return RegistrationResponse.otpSent(req.phoneNumber(), PENDING_TTL.toSeconds());
+    }
+
+    /** Step 2: verify the phone OTP, then create the account and issue tokens. */
+    @Transactional
+    public AuthResponse completeRegistration(String phoneNumber, String code) {
+        otpService.assertPhoneCode(phoneNumber, code);
+
+        String key = PENDING_PREFIX + phoneNumber;
+        var pending = redis.<String, String>opsForHash().entries(key);
+        if (pending.isEmpty()) {
+            throw new RentleException("Registration expired. Please start again.");
+        }
+        String email = pending.get("email");
+        if (userRepository.existsByPhoneNumber(phoneNumber) || userRepository.existsByEmail(email)) {
+            redis.delete(key);
+            throw new RentleException("This phone or email is already registered");
+        }
+
         User user = new User();
-        user.setPhoneNumber(req.phoneNumber());
-        user.setEmail(req.email());
-        user.setPasswordHash(passwordEncoder.encode(req.password()));
-        user.setFullName(req.fullName());
+        user.setPhoneNumber(phoneNumber);
+        user.setEmail(email);
+        user.setPasswordHash(pending.get("passwordHash"));
+        user.setFullName(pending.get("fullName"));
+        user.setPhoneVerified(true);
         user = userRepository.save(user);
+        redis.delete(key);
 
-        // Send both verification codes: a manual signup must verify phone and email.
-        otpService.sendOtp(user.getPhoneNumber());
-        otpService.sendEmailOtp(user.getId());
-
+        // Email is verified later by clicking a link; it never blocks registration.
+        emailVerificationService.sendLink(user);
         return issueTokens(user);
+    }
+
+    /** Resend the registration OTP while a pending signup exists. */
+    public void resendRegistrationOtp(String phoneNumber) {
+        if (Boolean.FALSE.equals(redis.hasKey(PENDING_PREFIX + phoneNumber))) {
+            throw new RentleException("No pending registration for this number");
+        }
+        otpService.sendPhoneCode(phoneNumber);
     }
 
     // noRollbackFor: the failed-attempt counter must survive the thrown
@@ -132,8 +177,9 @@ public class AuthService {
         return issueTokens(user);
     }
 
+    /** Create or link the account for a verified Google identity (no tokens issued). */
     @Transactional
-    public AuthResponse loginWithGoogle(String idToken) {
+    public User resolveGoogleUser(String idToken) {
         GoogleTokenVerifier.GoogleIdentity identity = googleTokenVerifier.verify(idToken);
 
         // Match on Google id first, then link to an existing account by email
@@ -152,8 +198,14 @@ public class AuthService {
         if (identity.emailVerified()) {
             user.setEmailVerified(true);
         }
-        user = userRepository.save(user);
+        return userRepository.save(user);
+    }
 
+    /** Issue a session for a resolved user id (used after the OAuth handoff). */
+    @Transactional(readOnly = true)
+    public AuthResponse issueSessionFor(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UnauthorizedException("User no longer exists"));
         if (user.getStatus() == UserStatus.SUSPENDED) {
             throw new UnauthorizedException("Account suspended. Contact support.");
         }
