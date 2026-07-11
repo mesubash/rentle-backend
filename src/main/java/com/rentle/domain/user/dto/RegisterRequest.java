@@ -2,13 +2,10 @@ package com.rentle.domain.user.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+/** Email-first signup — phone is added and verified later, before transacting. */
 public record RegisterRequest(
-        @NotBlank @Pattern(regexp = "^\\+?[0-9]{7,15}$", message = "Invalid phone number")
-        String phoneNumber,
-
         @NotBlank @Email @Size(max = 100)
         String email,
 

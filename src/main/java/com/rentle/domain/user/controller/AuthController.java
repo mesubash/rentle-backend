@@ -3,11 +3,8 @@ package com.rentle.domain.user.controller;
 import com.rentle.config.RentleProperties;
 import com.rentle.domain.user.dto.AuthResponse;
 import com.rentle.domain.user.dto.LoginRequest;
-import com.rentle.domain.user.dto.OtpSendRequest;
-import com.rentle.domain.user.dto.OtpVerifyRequest;
 import com.rentle.domain.user.dto.RefreshRequest;
 import com.rentle.domain.user.dto.RegisterRequest;
-import com.rentle.domain.user.dto.RegistrationResponse;
 import com.rentle.domain.user.service.AuthService;
 import com.rentle.domain.user.service.EmailVerificationService;
 import com.rentle.shared.api.ApiResponse;
@@ -41,23 +38,11 @@ public class AuthController {
         this.props = props;
     }
 
-    /** Step 1: does NOT create an account — sends a phone OTP to be confirmed next. */
+    /** Email-first signup: creates the account and starts a session immediately. */
     @PostMapping("/register")
-    public ApiResponse<RegistrationResponse> register(@Valid @RequestBody RegisterRequest request) {
-        return ApiResponse.ok(authService.register(request));
-    }
-
-    /** Step 2: verify the phone OTP and create the account. */
-    @PostMapping("/register/verify")
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<AuthResponse> completeRegistration(@Valid @RequestBody OtpVerifyRequest request) {
-        return ApiResponse.ok(authService.completeRegistration(request.phoneNumber(), request.code()));
-    }
-
-    @PostMapping("/register/resend")
-    public ApiResponse<String> resendRegistration(@Valid @RequestBody OtpSendRequest request) {
-        authService.resendRegistrationOtp(request.phoneNumber());
-        return ApiResponse.ok("Verification code sent");
+    public ApiResponse<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
+        return ApiResponse.ok(authService.register(request));
     }
 
     @PostMapping("/login")

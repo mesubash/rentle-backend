@@ -4,7 +4,6 @@ import com.rentle.config.JwtProperties;
 import com.rentle.domain.user.dto.AuthResponse;
 import com.rentle.domain.user.dto.LoginRequest;
 import com.rentle.domain.user.dto.RegisterRequest;
-import com.rentle.domain.user.dto.RegistrationResponse;
 import com.rentle.domain.user.dto.UserProfileResponse;
 import com.rentle.domain.user.model.User;
 import com.rentle.domain.user.model.UserStatus;
@@ -34,15 +33,12 @@ public class AuthService {
     private static final Duration LOCK_DURATION = Duration.ofMinutes(15);
     private static final String REFRESH_PREFIX = "refresh:";
     private static final String BLACKLIST_PREFIX = "bl:";
-    private static final String PENDING_PREFIX = "pendingreg:";
-    private static final Duration PENDING_TTL = Duration.ofMinutes(15);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenService jwtTokenService;
     private final JwtProperties jwtProperties;
     private final StringRedisTemplate redis;
-    private final OtpService otpService;
     private final EmailVerificationService emailVerificationService;
     private final RateLimitService rateLimitService;
     private final GoogleTokenVerifier googleTokenVerifier;
@@ -52,7 +48,6 @@ public class AuthService {
                        JwtTokenService jwtTokenService,
                        JwtProperties jwtProperties,
                        StringRedisTemplate redis,
-                       OtpService otpService,
                        EmailVerificationService emailVerificationService,
                        RateLimitService rateLimitService,
                        GoogleTokenVerifier googleTokenVerifier) {
@@ -61,72 +56,30 @@ public class AuthService {
         this.jwtTokenService = jwtTokenService;
         this.jwtProperties = jwtProperties;
         this.redis = redis;
-        this.otpService = otpService;
         this.emailVerificationService = emailVerificationService;
         this.rateLimitService = rateLimitService;
         this.googleTokenVerifier = googleTokenVerifier;
     }
 
     /**
-     * Step 1 of registration: validate, stash the pending signup, and send a phone
-     * OTP. No account or token is created until {@link #completeRegistration} — an
-     * unverified phone can never become a usable account.
+     * Email-first signup: create the account immediately and start a session. Phone
+     * and email are verified afterwards (email by link now, phone on the verification
+     * page) — and both, plus KYC, are required before booking or listing.
      */
-    public RegistrationResponse register(RegisterRequest req) {
-        if (userRepository.existsByPhoneNumber(req.phoneNumber())) {
-            throw new RentleException("Phone number already registered");
-        }
+    @Transactional
+    public AuthResponse register(RegisterRequest req) {
         if (userRepository.existsByEmail(req.email())) {
             throw new RentleException("Email already registered");
         }
 
-        String key = PENDING_PREFIX + req.phoneNumber();
-        redis.opsForHash().putAll(key, java.util.Map.of(
-                "email", req.email(),
-                "passwordHash", passwordEncoder.encode(req.password()),
-                "fullName", req.fullName()));
-        redis.expire(key, PENDING_TTL);
-
-        otpService.sendPhoneCode(req.phoneNumber());
-        return RegistrationResponse.otpSent(req.phoneNumber(), PENDING_TTL.toSeconds());
-    }
-
-    /** Step 2: verify the phone OTP, then create the account and issue tokens. */
-    @Transactional
-    public AuthResponse completeRegistration(String phoneNumber, String code) {
-        otpService.assertPhoneCode(phoneNumber, code);
-
-        String key = PENDING_PREFIX + phoneNumber;
-        var pending = redis.<String, String>opsForHash().entries(key);
-        if (pending.isEmpty()) {
-            throw new RentleException("Registration expired. Please start again.");
-        }
-        String email = pending.get("email");
-        if (userRepository.existsByPhoneNumber(phoneNumber) || userRepository.existsByEmail(email)) {
-            redis.delete(key);
-            throw new RentleException("This phone or email is already registered");
-        }
-
         User user = new User();
-        user.setPhoneNumber(phoneNumber);
-        user.setEmail(email);
-        user.setPasswordHash(pending.get("passwordHash"));
-        user.setFullName(pending.get("fullName"));
-        user.setPhoneVerified(true);
+        user.setEmail(req.email());
+        user.setPasswordHash(passwordEncoder.encode(req.password()));
+        user.setFullName(req.fullName());
         user = userRepository.save(user);
-        redis.delete(key);
 
-        // Email is verified later by clicking a link; it never blocks registration.
         emailVerificationService.sendLink(user);
         return issueTokens(user);
-    }
-
-    /** Resend the registration OTP while a pending signup exists. */
-    public void resendRegistrationOtp(String phoneNumber) {
-        if (Boolean.FALSE.equals(redis.hasKey(PENDING_PREFIX + phoneNumber))) {
-            throw new RentleException("No pending registration for this number");
-        }
-        otpService.sendPhoneCode(phoneNumber);
     }
 
     // noRollbackFor: the failed-attempt counter must survive the thrown

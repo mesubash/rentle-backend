@@ -4,22 +4,20 @@ import com.rentle.config.TestcontainersConfig;
 import com.rentle.domain.user.dto.AuthResponse;
 import com.rentle.domain.user.dto.LoginRequest;
 import com.rentle.domain.user.dto.RegisterRequest;
-import com.rentle.domain.user.dto.RegistrationResponse;
 import com.rentle.domain.user.model.User;
 import com.rentle.domain.user.model.UserStatus;
 import com.rentle.domain.user.repository.UserRepository;
 import com.rentle.domain.user.service.AuthService;
-import com.rentle.shared.exception.RentleException;
-import com.rentle.shared.exception.UnauthorizedException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -29,92 +27,78 @@ class AuthFlowIntegrationTest {
 
     @Autowired AuthService authService;
     @Autowired UserRepository userRepository;
-    @Autowired StringRedisTemplate redis;
 
     private RegisterRequest uniqueRegisterRequest() {
         long n = System.nanoTime() % 1_000_000_000L;
-        return new RegisterRequest("+97798" + n, "user" + n + "@test.com", "password123", "Test User");
-    }
-
-    /** Full two-step signup: register (OTP only) then verify to create the account. */
-    private AuthResponse signUp(RegisterRequest req) {
-        authService.register(req);
-        String code = redis.opsForValue().get("otp:" + req.phoneNumber());
-        assertNotNull(code, "OTP must be issued on registration");
-        return authService.completeRegistration(req.phoneNumber(), code);
+        return new RegisterRequest("user" + n + "@test.com", "password123", "Test User");
     }
 
     @Test
-    void registrationRequiresPhoneOtpBeforeAccountExists() {
+    void registerCreatesAccountImmediatelyAndSendsEmailLink() {
         RegisterRequest req = uniqueRegisterRequest();
-        RegistrationResponse pending = authService.register(req);
-
-        assertTrue(pending.otpRequired());
-        // No account and no tokens until the OTP is verified — the critical guarantee.
-        assertTrue(userRepository.findByPhoneNumber(req.phoneNumber()).isEmpty());
-
-        String code = redis.opsForValue().get("otp:" + req.phoneNumber());
-        AuthResponse auth = authService.completeRegistration(req.phoneNumber(), code);
+        AuthResponse auth = authService.register(req);
 
         assertNotNull(auth.accessToken());
         assertNotNull(auth.refreshToken());
-        User user = userRepository.findByPhoneNumber(req.phoneNumber()).orElseThrow();
-        assertTrue(user.getPhoneVerified());
-        assertEquals(false, user.getEmailVerified()); // email verified later via link
+
+        User user = userRepository.findByEmail(req.email()).orElseThrow();
+        // Email-first: no phone yet, nothing verified — verification happens later.
+        assertNull(user.getPhoneNumber());
+        assertFalse(user.getPhoneVerified());
+        assertFalse(user.getEmailVerified());
+        assertEquals(UserStatus.PENDING_VERIFICATION, user.getStatus());
     }
 
     @Test
-    void wrongOtpDoesNotCreateAccount() {
+    void duplicateEmailRegistrationRejected() {
         RegisterRequest req = uniqueRegisterRequest();
         authService.register(req);
-        assertThrows(RentleException.class,
-                () -> authService.completeRegistration(req.phoneNumber(), "000000"));
-        assertTrue(userRepository.findByPhoneNumber(req.phoneNumber()).isEmpty());
-    }
-
-    @Test
-    void duplicatePhoneRegistrationRejected() {
-        RegisterRequest req = uniqueRegisterRequest();
-        signUp(req);
-        RegisterRequest dup = new RegisterRequest(
-                req.phoneNumber(), "other" + System.nanoTime() + "@test.com", "password123", "Dup User");
+        RegisterRequest dup = new RegisterRequest(req.email(), "password123", "Dup User");
         assertThrows(RuntimeException.class, () -> authService.register(dup));
     }
 
     @Test
     void accountLocksAfterFiveFailedLogins() {
         RegisterRequest req = uniqueRegisterRequest();
-        signUp(req);
+        authService.register(req);
 
         for (int i = 0; i < 5; i++) {
-            assertThrows(UnauthorizedException.class,
-                    () -> authService.login(new LoginRequest(req.phoneNumber(), "wrong-password")));
+            assertThrows(RuntimeException.class,
+                    () -> authService.login(new LoginRequest(req.email(), "wrong-password")));
         }
-        UnauthorizedException ex = assertThrows(UnauthorizedException.class,
-                () -> authService.login(new LoginRequest(req.phoneNumber(), req.password())));
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> authService.login(new LoginRequest(req.email(), req.password())));
         assertTrue(ex.getMessage().toLowerCase().contains("locked"));
     }
 
     @Test
+    void loginByEmailSucceeds() {
+        RegisterRequest req = uniqueRegisterRequest();
+        authService.register(req);
+        AuthResponse auth = authService.login(new LoginRequest(req.email(), req.password()));
+        assertNotNull(auth.accessToken());
+    }
+
+    @Test
     void refreshTokensRotate() {
-        AuthResponse initial = signUp(uniqueRegisterRequest());
+        AuthResponse initial = authService.register(uniqueRegisterRequest());
 
         AuthResponse refreshed = authService.refresh(initial.refreshToken());
         assertNotNull(refreshed.accessToken());
         assertNotEquals(initial.refreshToken(), refreshed.refreshToken());
 
-        assertThrows(UnauthorizedException.class, () -> authService.refresh(initial.refreshToken()));
+        assertThrows(RuntimeException.class, () -> authService.refresh(initial.refreshToken()));
     }
 
     @Test
     void suspendedUserCannotLogin() {
         RegisterRequest req = uniqueRegisterRequest();
-        signUp(req);
-        User user = userRepository.findByPhoneNumber(req.phoneNumber()).orElseThrow();
+        authService.register(req);
+        User user = userRepository.findByEmail(req.email()).orElseThrow();
         user.setStatus(UserStatus.SUSPENDED);
         userRepository.save(user);
 
-        assertThrows(UnauthorizedException.class,
-                () -> authService.login(new LoginRequest(req.phoneNumber(), req.password())));
+        assertThrows(RuntimeException.class,
+                () -> authService.login(new LoginRequest(req.email(), req.password())));
     }
 }
