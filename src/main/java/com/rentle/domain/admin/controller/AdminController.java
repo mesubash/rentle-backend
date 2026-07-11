@@ -5,11 +5,15 @@ import com.rentle.domain.booking.dto.BookingResponse;
 import com.rentle.domain.listing.dto.ListingSummaryResponse;
 import com.rentle.domain.user.dto.UserProfileResponse;
 import com.rentle.domain.user.model.UserStatus;
+import com.rentle.domain.user.service.UserService;
 import com.rentle.shared.api.ApiResponse;
 import com.rentle.shared.api.PageResponse;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,9 +30,11 @@ import java.util.UUID;
 public class AdminController {
 
     private final AdminService adminService;
+    private final UserService userService;
 
-    public AdminController(AdminService adminService) {
+    public AdminController(AdminService adminService, UserService userService) {
         this.adminService = adminService;
+        this.userService = userService;
     }
 
     @GetMapping("/users")
@@ -37,6 +43,14 @@ public class AdminController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.ok(adminService.listUsers(status, pageable(page, size)));
+    }
+
+    @GetMapping("/users/{id}/citizenship")
+    public ResponseEntity<Resource> citizenship(@PathVariable UUID id) {
+        UserService.CitizenshipFile file = userService.loadCitizenship(id);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(file.contentType()))
+                .body(file.resource());
     }
 
     @PutMapping("/users/{id}/verify")

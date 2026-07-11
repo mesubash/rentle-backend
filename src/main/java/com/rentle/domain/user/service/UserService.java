@@ -8,7 +8,9 @@ import com.rentle.domain.user.repository.UserRepository;
 import com.rentle.shared.exception.RentleException;
 import com.rentle.shared.exception.ResourceNotFoundException;
 import com.rentle.shared.storage.ImageValidator;
+import com.rentle.shared.storage.PrivateStorageService;
 import com.rentle.shared.storage.StorageService;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,11 +25,17 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final StorageService storageService;
+    private final PrivateStorageService privateStorageService;
 
-    public UserService(UserRepository userRepository, StorageService storageService) {
+    public UserService(UserRepository userRepository,
+                       StorageService storageService,
+                       PrivateStorageService privateStorageService) {
         this.userRepository = userRepository;
         this.storageService = storageService;
+        this.privateStorageService = privateStorageService;
     }
+
+    public record CitizenshipFile(Resource resource, String contentType) {}
 
     public UserProfileResponse getMe(UUID userId) {
         return UserProfileResponse.from(getUser(userId));
@@ -67,8 +75,21 @@ public class UserService {
         if (Boolean.TRUE.equals(user.getCitizenshipVerified())) {
             throw new RentleException("Citizenship already verified");
         }
-        user.setCitizenshipCardUrl(storageService.upload(file, "citizenship"));
+        // Private store, keyed by user id — never served via the public /files handler.
+        String ref = privateStorageService.store(file, "citizenship", userId.toString());
+        user.setCitizenshipCardUrl(ref);
         return UserProfileResponse.from(userRepository.save(user));
+    }
+
+    /** Load a user's citizenship image. Caller must already be authorized (self or admin). */
+    @Transactional(readOnly = true)
+    public CitizenshipFile loadCitizenship(UUID userId) {
+        User user = getUser(userId);
+        String ref = user.getCitizenshipCardUrl();
+        if (ref == null) {
+            throw new ResourceNotFoundException("No citizenship document on file");
+        }
+        return new CitizenshipFile(privateStorageService.load(ref), privateStorageService.contentType(ref));
     }
 
     private User getUser(UUID userId) {

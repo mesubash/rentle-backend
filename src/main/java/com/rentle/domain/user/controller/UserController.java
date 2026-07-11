@@ -7,6 +7,9 @@ import com.rentle.domain.user.service.UserService;
 import com.rentle.shared.api.ApiResponse;
 import com.rentle.shared.security.SecurityUtils;
 import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,6 +50,14 @@ public class UserController {
     @PostMapping("/me/citizenship")
     public ApiResponse<UserProfileResponse> uploadCitizenship(@RequestParam("file") MultipartFile file) {
         return ApiResponse.ok(userService.uploadCitizenshipCard(SecurityUtils.currentUserId(), file));
+    }
+
+    @GetMapping("/me/citizenship")
+    public ResponseEntity<Resource> myCitizenship() {
+        UserService.CitizenshipFile file = userService.loadCitizenship(SecurityUtils.currentUserId());
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(file.contentType()))
+                .body(file.resource());
     }
 
     @GetMapping("/{id}")
