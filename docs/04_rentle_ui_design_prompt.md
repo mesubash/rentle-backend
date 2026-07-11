@@ -77,12 +77,15 @@ not in tech-industry defaults.
 - **Ink** `#1F2421` — near-black with a green undertone for all primary text.
 - **Pine** `#1E5748` — deep evergreen. Primary actions, active states, links, the logo.
 - **Marigold** `#E8A13A` — warm accent from festival garlands. Ratings, highlights,
-  "verified" warmth, small moments of celebration. Use sparingly — it should feel earned.
+  "verified" warmth, small moments of celebration. Use sparingly — it should feel
+  earned. When used as text on paper, darken to `#B07515` for WCAG AA contrast.
 - **Brick** `#B4552D` — terracotta from Kathmandu's old city. Destructive/cancel
-  actions, urgent notices.
-- **Stone** `#8A8578` — secondary text, borders, placeholders.
-- Status tints: derive soft backgrounds of pine/marigold/brick/stone for booking-state
-  chips; each state must also differ by label and icon, never by color alone.
+  actions, urgent notices, unread badges.
+- **Stone** `#8A8578` — secondary text and placeholders. Borders use the warmer
+  `#DDD6C8` / `#E7E1D4`.
+- Status tints: soft 8–16% alpha washes of pine/marigold for chips and tags — e.g.
+  Product tag `rgba(30,87,72,.09)`, Service tag `rgba(232,161,58,.16)`; each state
+  must also differ by label and icon, never by color alone.
 
 Solid colors only. **No gradients anywhere.** High contrast, generous warmth. Dominant
 neutral (paper) + one confident primary (pine) + accents that appear only when they
@@ -92,9 +95,10 @@ mean something.
 
 - **Display / headings:** Fraunces (or a comparable warm high-contrast serif). This is
   the personality carrier — use it big and confident on screen titles, listing titles,
-  empty states, and prices on detail pages.
-- **Body / UI:** Instrument Sans (or comparable humanist grotesque). Never Inter,
-  never a system-font-only stack.
+  empty states, and prices on detail pages. Weights 600–700, tight line-height,
+  letter-spacing `-0.01em`.
+- **Body / UI:** Instrument Sans (or comparable humanist grotesque), weights
+  400/500/600/700. Never Inter, never a system-font-only stack.
 - **Numbers:** tabular figures for all prices and dates. Prices formatted as
   `NPR 2,500 / day` — the currency and unit are always visible, never a bare number.
 - Real typographic scale with strong jumps (e.g. 32/24/18/15/13), not a timid
@@ -107,10 +111,15 @@ mean something.
   slim top bar — logo, search, Explore, Bookings, Messages (badge), profile menu, and
   a persistent "List an item" button in pine. On phone widths the top bar collapses
   and a bottom tab bar takes over: Explore, Bookings, Messages, Profile.
+- Signature masthead: solid pine top bar containing a paper-colored search field
+  and the desktop nav; outlined category pills below (active pill = marigold fill,
+  pine text); a marigold-tinted trust strip directly beneath ("Every owner is
+  citizenship-verified…").
 - One strong layout primitive, repeated: a flat card on paper background with a 1px
-  stone border, small radius (6–8px), no drop shadows or at most one barely-there
-  elevation for overlays. Density over airiness — listings should feel like a busy,
-  healthy market, not a sparse portfolio.
+  warm border (`#E7E1D4`), small radius (6–7px), no drop shadows — hover state is a
+  pine border. Density over airiness — listings should feel like a busy, healthy
+  market, not a sparse portfolio. Photo placeholders are striped paper-tone blocks
+  with small monospace labels, never grey boxes.
 - **Listing card:** photo (4:3), title in serif, price with unit, district with a
   simple pin glyph, rating star in marigold with count, owner's verified badge. A
   small "Product"/"Service" tag distinguishes the two types.

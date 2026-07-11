@@ -81,28 +81,48 @@ stranger — it should feel like a well-run local institution: warm but precise,
 friendly but never cute. Not a Silicon Valley SaaS, not a crypto app. Every screen
 answers the silent question: *"can I trust this person, and what happens next?"*
 
-### Color (exact tokens)
+### Color (exact tokens — solid only, no gradients)
 
 - **Paper** `#FAF7F2` — app background. Never pure white, never grey-blue.
-- **Ink** `#1F2421` — primary text.
-- **Pine** `#1E5748` — primary buttons, links, active states, logo.
-- **Marigold** `#E8A13A` — ratings, verified warmth, small celebrations. Sparingly;
-  darken for text on paper (WCAG AA).
-- **Brick** `#B4552D` — destructive/cancel actions, urgent notices, form errors.
-- **Stone** `#8A8578` — secondary text, 1px borders, placeholders.
-- Booking-state chips use soft tints of these; every state also differs by label
-  and icon, never color alone.
+- **Ink** `#1F2421` — primary text; toasts are ink-colored.
+- **Pine** `#1E5748` — primary actions, active states, links, masthead.
+- **Marigold** `#E8A13A` — accents: ratings, highlights. When used as *text on
+  paper*, darken to `#B07515` for WCAG AA contrast.
+- **Brick** `#B4552D` — destructive/urgent actions, unread badges, form errors.
+- **Stone** `#8A8578` — secondary text and placeholders. Borders use the warmer
+  `#DDD6C8` / `#E7E1D4`, not stone itself.
+- **Status tints:** soft 8–16% alpha washes of pine/marigold for chips and tags —
+  e.g. Product tag `rgba(30,87,72,.09)`, Service tag `rgba(232,161,58,.16)`.
+  Every booking state also differs by label and icon, never color alone.
 
-Solid colors only — **no gradients anywhere**. Paper dominates; pine is the one
-confident primary; accents appear only when they mean something.
+Paper dominates; pine is the one confident primary; accents appear only when they
+mean something.
 
 ### Typography
 
-- **Display/headings:** Fraunces (Google Fonts) — big and confident on screen
-  titles, listing titles, empty states, prices on detail pages.
-- **Body/UI:** Instrument Sans (Google Fonts). Never Inter, never system-only.
-- Tabular figures for all prices and dates. Strong scale jumps (32/24/18/15/13),
-  body ≥ 15px mobile / 16px desktop.
+- **Display:** Fraunces (Google Fonts, serif) — screen titles, listing titles,
+  prices on detail pages, empty-state headlines. Weights 600–700, tight
+  line-height, letter-spacing `-0.01em`.
+- **Body/UI:** Instrument Sans (Google Fonts) — weights 400/500/600/700,
+  body ≥ 15px mobile / 16px desktop. Never Inter, never system-only.
+- Tabular figures (`font-variant-numeric: tabular-nums`) on all prices and dates;
+  format `NPR 2,500 / day`, never a bare number. Strong scale jumps (32/24/18/15/13).
+
+### Key moves (signature patterns — use these)
+
+- Solid **pine masthead** containing a paper-colored search field and the desktop
+  nav; outlined category pills below — active pill = marigold fill with pine text.
+- A marigold-tinted **trust strip** directly under the masthead:
+  "Every owner is citizenship-verified…".
+- Flat white cards, 1px warm border (`#E7E1D4`), 6–7px radius, **no shadows**;
+  hover state = pine border.
+- Listing rows/cards: 4:3 photo left, serif title, pine-colored price.
+- Photo placeholders: striped paper-tone blocks with small monospace labels —
+  no grey boxes.
+- Lucide stroke icons at one weight throughout.
+- Mobile bottom tabs (Explore / Bookings / Messages / Profile) ↔ desktop top nav
+  inside the masthead; content max-width 1200px; 44px+ touch targets.
+- Toasts in ink; all transitions 200ms ease-out.
 
 ### Layout
 
