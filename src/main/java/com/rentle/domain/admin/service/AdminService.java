@@ -57,6 +57,9 @@ public class AdminService {
         if (!Boolean.TRUE.equals(user.getPhoneVerified())) {
             throw new RentleException("Phone must be verified before citizenship approval");
         }
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new RentleException("Email must be verified before citizenship approval");
+        }
         user.setCitizenshipVerified(true);
         user.setStatus(UserStatus.VERIFIED);
         user = userRepository.save(user);

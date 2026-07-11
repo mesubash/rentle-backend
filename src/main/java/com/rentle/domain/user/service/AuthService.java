@@ -11,7 +11,7 @@ import com.rentle.domain.user.repository.UserRepository;
 import com.rentle.shared.exception.RentleException;
 import com.rentle.shared.exception.TooManyRequestsException;
 import com.rentle.shared.exception.UnauthorizedException;
-import com.rentle.shared.notification.EmailService;
+import com.rentle.shared.security.GoogleTokenVerifier;
 import com.rentle.shared.security.JwtTokenService;
 import com.rentle.shared.security.RateLimitService;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -40,8 +40,8 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final StringRedisTemplate redis;
     private final OtpService otpService;
-    private final EmailService emailService;
     private final RateLimitService rateLimitService;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
@@ -49,16 +49,16 @@ public class AuthService {
                        JwtProperties jwtProperties,
                        StringRedisTemplate redis,
                        OtpService otpService,
-                       EmailService emailService,
-                       RateLimitService rateLimitService) {
+                       RateLimitService rateLimitService,
+                       GoogleTokenVerifier googleTokenVerifier) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenService = jwtTokenService;
         this.jwtProperties = jwtProperties;
         this.redis = redis;
         this.otpService = otpService;
-        this.emailService = emailService;
         this.rateLimitService = rateLimitService;
+        this.googleTokenVerifier = googleTokenVerifier;
     }
 
     @Transactional
@@ -77,9 +77,9 @@ public class AuthService {
         user.setFullName(req.fullName());
         user = userRepository.save(user);
 
+        // Send both verification codes: a manual signup must verify phone and email.
         otpService.sendOtp(user.getPhoneNumber());
-        emailService.send(user.getEmail(), "Welcome to Rentle",
-                "Hi " + user.getFullName() + ", welcome to Rentle! Verify your phone to get started.");
+        otpService.sendEmailOtp(user.getId());
 
         return issueTokens(user);
     }
@@ -103,6 +103,11 @@ public class AuthService {
             throw new UnauthorizedException("Account locked due to failed logins. Try again later.");
         }
 
+        // Social-login accounts have no password
+        if (user.getPasswordHash() == null) {
+            throw new UnauthorizedException("Use Google sign-in for this account");
+        }
+
         if (!passwordEncoder.matches(req.password(), user.getPasswordHash())) {
             int attempts = user.getFailedLoginAttempts() + 1;
             user.setFailedLoginAttempts(attempts);
@@ -124,6 +129,34 @@ public class AuthService {
         user.setLastLoginAt(Instant.now());
         userRepository.save(user);
 
+        return issueTokens(user);
+    }
+
+    @Transactional
+    public AuthResponse loginWithGoogle(String idToken) {
+        GoogleTokenVerifier.GoogleIdentity identity = googleTokenVerifier.verify(idToken);
+
+        // Match on Google id first, then link to an existing account by email
+        // (Google having verified the email proves ownership), else create one.
+        User user = userRepository.findByGoogleId(identity.subject())
+                .orElseGet(() -> userRepository.findByEmail(identity.email()).orElse(null));
+
+        if (user == null) {
+            user = new User();
+            user.setEmail(identity.email());
+            user.setFullName(identity.name() != null && !identity.name().isBlank()
+                    ? identity.name() : identity.email());
+            user.setProfilePhotoUrl(identity.picture());
+        }
+        user.setGoogleId(identity.subject());
+        if (identity.emailVerified()) {
+            user.setEmailVerified(true);
+        }
+        user = userRepository.save(user);
+
+        if (user.getStatus() == UserStatus.SUSPENDED) {
+            throw new UnauthorizedException("Account suspended. Contact support.");
+        }
         return issueTokens(user);
     }
 

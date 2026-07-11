@@ -81,6 +81,7 @@ class BookingFlowIntegrationTest {
         u.setFullName("Test User " + n);
         u.setStatus(status);
         u.setPhoneVerified(true);
+        u.setEmailVerified(true);
         u.setCitizenshipVerified(status == UserStatus.VERIFIED);
         return userRepository.save(u);
     }
@@ -300,6 +301,14 @@ class BookingFlowIntegrationTest {
         User secondRenter = createUser(UserStatus.VERIFIED);
         assertThrows(Exception.class, () -> bookingService.createBooking(secondRenter.getId(),
                 hourlyRequest(listing.getId(), 5, LocalTime.of(11, 0), LocalTime.of(13, 0))));
+    }
+
+    @Test
+    void unverifiedUserCannotBook() {
+        Listing listing = createActiveListing(owner, "0.00");
+        User pending = createUser(UserStatus.PENDING_VERIFICATION);
+        assertThrows(UnauthorizedException.class, () ->
+                bookingService.createBooking(pending.getId(), bookingRequest(listing.getId(), 5, 6)));
     }
 
     @Test

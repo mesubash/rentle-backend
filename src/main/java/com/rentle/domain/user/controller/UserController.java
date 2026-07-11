@@ -1,8 +1,11 @@
 package com.rentle.domain.user.controller;
 
+import com.rentle.domain.user.dto.CodeRequest;
 import com.rentle.domain.user.dto.PublicProfileResponse;
+import com.rentle.domain.user.dto.SetPhoneRequest;
 import com.rentle.domain.user.dto.UpdateProfileRequest;
 import com.rentle.domain.user.dto.UserProfileResponse;
+import com.rentle.domain.user.service.OtpService;
 import com.rentle.domain.user.service.UserService;
 import com.rentle.shared.api.ApiResponse;
 import com.rentle.shared.security.SecurityUtils;
@@ -27,9 +30,11 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
+    private final OtpService otpService;
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, OtpService otpService) {
         this.userService = userService;
+        this.otpService = otpService;
     }
 
     @GetMapping("/me")
@@ -50,6 +55,30 @@ public class UserController {
     @PostMapping("/me/citizenship")
     public ApiResponse<UserProfileResponse> uploadCitizenship(@RequestParam("file") MultipartFile file) {
         return ApiResponse.ok(userService.uploadCitizenshipCard(SecurityUtils.currentUserId(), file));
+    }
+
+    @PostMapping("/me/phone")
+    public ApiResponse<String> setPhone(@Valid @RequestBody SetPhoneRequest request) {
+        otpService.setPhoneAndSendOtp(SecurityUtils.currentUserId(), request.phoneNumber());
+        return ApiResponse.ok("Verification code sent");
+    }
+
+    @PostMapping("/me/phone/verify")
+    public ApiResponse<UserProfileResponse> verifyPhone(@Valid @RequestBody CodeRequest request) {
+        otpService.verifyCurrentUserPhone(SecurityUtils.currentUserId(), request.code());
+        return ApiResponse.ok(userService.getMe(SecurityUtils.currentUserId()));
+    }
+
+    @PostMapping("/me/email/otp/send")
+    public ApiResponse<String> sendEmailOtp() {
+        otpService.sendEmailOtp(SecurityUtils.currentUserId());
+        return ApiResponse.ok("Verification code sent");
+    }
+
+    @PostMapping("/me/email/otp/verify")
+    public ApiResponse<UserProfileResponse> verifyEmail(@Valid @RequestBody CodeRequest request) {
+        otpService.verifyEmailOtp(SecurityUtils.currentUserId(), request.code());
+        return ApiResponse.ok(userService.getMe(SecurityUtils.currentUserId()));
     }
 
     @GetMapping("/me/citizenship")

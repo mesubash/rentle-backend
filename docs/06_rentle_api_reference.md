@@ -241,6 +241,21 @@ Content-Type: application/json
 **Errors:** `401` invalid credentials · account locked (5 failed attempts) ·
 suspended. `429` too many attempts.
 
+### POST /auth/google
+
+Sign in with a Google ID token obtained by the frontend from Google Identity
+Services. The token is verified against Google's JWKS (signature, issuer,
+audience). Matches an existing account by Google id or email, else creates one
+(email marked verified from Google, no phone/password yet). Requires
+`GOOGLE_CLIENT_ID` to be configured.
+
+**Auth:** public · **Body:** `{ "idToken": "<google id token>" }`
+**`200 OK`** → [`AuthResponse`](#authresponse). **Errors:** `401` invalid token ·
+`400` Google sign-in not configured.
+
+A Google account has no phone; the user must add and verify one
+([`POST /users/me/phone`](#post-usersmephone)) before booking or listing.
+
 ### POST /auth/refresh
 
 Exchange a valid refresh token for a fresh pair. The presented refresh token is
@@ -307,6 +322,29 @@ Upload a citizenship card for identity verification. `multipart/form-data`, fiel
 
 **Auth:** bearer · **`200 OK`** → [`UserProfile`](#userprofile) (`citizenshipUploaded: true`).
 **Errors:** `400` already verified.
+
+### POST /users/me/phone
+
+Set (or change) the caller's phone number and dispatch an SMS OTP. Used by Google
+users to add a phone. Rejects a number already used by another account.
+
+**Auth:** bearer · **Body:** `{ "phoneNumber": "+9779841000001" }`
+**`200 OK`** → `{ "data": "Verification code sent", ... }`. **Errors:** `400` invalid / in use.
+
+### POST /users/me/phone/verify
+
+Verify the OTP for the caller's current phone → `phoneVerified`.
+**Auth:** bearer · **Body:** `{ "code": "482910" }` · **`200 OK`** → [`UserProfile`](#userprofile).
+
+### POST /users/me/email/otp/send
+
+Send a 6-digit verification code to the caller's email.
+**Auth:** bearer · **`200 OK`** → `{ "data": "Verification code sent", ... }`. **Errors:** `400` already verified / rate limited.
+
+### POST /users/me/email/otp/verify
+
+Verify the email code → `emailVerified`.
+**Auth:** bearer · **Body:** `{ "code": "482910" }` · **`200 OK`** → [`UserProfile`](#userprofile).
 
 The document is stored privately (never under the public `/files` path) and is only
 retrievable through the two authenticated endpoints below.
@@ -511,8 +549,9 @@ confirm-deposit. Actions are restricted by role:
 
 ### POST /bookings
 
-Request a booking. Renter only (cannot book own listing). Times required when the
-listing is `PER_HOUR`.
+Request a booking. The renter must be fully verified (`status = VERIFIED`, i.e. phone
++ email + citizenship all done). Renter only (cannot book own listing). Times required
+when the listing is `PER_HOUR`.
 
 **Auth:** bearer · **Body:**
 
@@ -698,10 +737,12 @@ All listings, paginated (newest first).
 Full private profile (own or admin view).
 
 ```json
-{ "id": "uuid", "phoneNumber": "string", "email": "string", "fullName": "string",
+{ "id": "uuid", "phoneNumber": "string|null", "email": "string", "fullName": "string",
   "profilePhotoUrl": "string|null", "role": "USER|ADMIN",
   "status": "PENDING_VERIFICATION|VERIFIED|SUSPENDED",
-  "phoneVerified": true, "citizenshipVerified": false, "citizenshipUploaded": false,
+  "authProvider": "LOCAL|GOOGLE", "hasPassword": true,
+  "phoneVerified": true, "emailVerified": true,
+  "citizenshipVerified": false, "citizenshipUploaded": false,
   "trustScore": 4.5, "createdAt": "timestamp" }
 ```
 

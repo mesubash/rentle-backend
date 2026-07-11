@@ -13,6 +13,8 @@ import com.rentle.domain.listing.repository.ListingRepository;
 import com.rentle.domain.listing.repository.ProductDetailRepository;
 import com.rentle.domain.listing.repository.ServiceDetailRepository;
 import com.rentle.domain.listing.service.AvailabilityService;
+import com.rentle.domain.user.model.User;
+import com.rentle.domain.user.model.UserStatus;
 import com.rentle.domain.user.repository.UserRepository;
 import com.rentle.shared.api.PageResponse;
 import com.rentle.shared.event.BookingApprovedEvent;
@@ -79,6 +81,15 @@ public class BookingService {
     }
 
     public BookingResponse createBooking(UUID renterId, CreateBookingRequest req) {
+        // KYC-first: only fully verified users (phone + email + ID, i.e. VERIFIED)
+        // can transact. Verification status carries the transitive proof.
+        User renter = userRepository.findById(renterId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (renter.getStatus() != UserStatus.VERIFIED) {
+            throw new UnauthorizedException(
+                    "Complete verification (phone, email, and ID) before booking");
+        }
+
         Listing listing = listingRepository.findByIdAndStatus(req.listingId(), ListingStatus.ACTIVE)
                 .orElseThrow(() -> new ResourceNotFoundException("Listing not found or inactive"));
 
@@ -98,7 +109,7 @@ public class BookingService {
 
         Booking booking = new Booking();
         booking.setListing(listing);
-        booking.setRenter(userRepository.getReferenceById(renterId));
+        booking.setRenter(renter);
         booking.setStartDate(req.startDate());
         booking.setEndDate(req.endDate());
         booking.setStartTime(req.startTime());

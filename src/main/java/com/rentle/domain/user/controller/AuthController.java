@@ -1,6 +1,7 @@
 package com.rentle.domain.user.controller;
 
 import com.rentle.domain.user.dto.AuthResponse;
+import com.rentle.domain.user.dto.GoogleLoginRequest;
 import com.rentle.domain.user.dto.LoginRequest;
 import com.rentle.domain.user.dto.OtpSendRequest;
 import com.rentle.domain.user.dto.OtpVerifyRequest;
@@ -41,6 +42,11 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ApiResponse.ok(authService.login(request));
+    }
+
+    @PostMapping("/google")
+    public ApiResponse<AuthResponse> google(@Valid @RequestBody GoogleLoginRequest request) {
+        return ApiResponse.ok(authService.loginWithGoogle(request.idToken()));
     }
 
     @PostMapping("/refresh")

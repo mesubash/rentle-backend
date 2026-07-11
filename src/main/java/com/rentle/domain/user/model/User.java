@@ -20,14 +20,19 @@ import java.time.Instant;
 @NoArgsConstructor
 public class User extends AuditableEntity {
 
-    @Column(name = "phone_number", unique = true, nullable = false, length = 20)
+    // Nullable: Google sign-ups have no phone until they add one.
+    @Column(name = "phone_number", unique = true, length = 20)
     private String phoneNumber;
 
     @Column(unique = true, nullable = false, length = 100)
     private String email;
 
-    @Column(name = "password_hash", nullable = false)
+    // Nullable: social-login accounts have no local password.
+    @Column(name = "password_hash")
     private String passwordHash;
+
+    @Column(name = "google_id", unique = true, length = 64)
+    private String googleId;
 
     @Column(name = "full_name", nullable = false, length = 100)
     private String fullName;
@@ -45,6 +50,9 @@ public class User extends AuditableEntity {
 
     @Column(name = "phone_verified", nullable = false)
     private Boolean phoneVerified = false;
+
+    @Column(name = "email_verified", nullable = false)
+    private Boolean emailVerified = false;
 
     @Column(name = "citizenship_card_url", length = 500)
     private String citizenshipCardUrl;

@@ -48,6 +48,11 @@ rentle:
   sms: ${RENTLE_SMS:logging}
   private-upload-dir: ${RENTLE_PRIVATE_UPLOAD_DIR:private-uploads}
 
+# Google Sign-In: set GOOGLE_CLIENT_ID to your OAuth 2.0 Web client id to enable
+# /auth/google (the same id the frontend uses as NEXT_PUBLIC_GOOGLE_CLIENT_ID).
+google:
+  client-id: ${GOOGLE_CLIENT_ID:}
+
 jwt:
   # PEM strings; blank = ephemeral dev keypair generated at startup
   private-key: ${JWT_PRIVATE_KEY:}
