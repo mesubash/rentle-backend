@@ -9,9 +9,11 @@ import com.rentle.domain.user.model.User;
 import com.rentle.domain.user.model.UserStatus;
 import com.rentle.domain.user.repository.UserRepository;
 import com.rentle.shared.exception.RentleException;
+import com.rentle.shared.exception.TooManyRequestsException;
 import com.rentle.shared.exception.UnauthorizedException;
 import com.rentle.shared.notification.EmailService;
 import com.rentle.shared.security.JwtTokenService;
+import com.rentle.shared.security.RateLimitService;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -26,6 +28,8 @@ import java.util.UUID;
 public class AuthService {
 
     private static final int MAX_FAILED_ATTEMPTS = 5;
+    private static final int LOGIN_ATTEMPTS_PER_WINDOW = 10;
+    private static final Duration LOGIN_WINDOW = Duration.ofMinutes(15);
     private static final Duration LOCK_DURATION = Duration.ofMinutes(15);
     private static final String REFRESH_PREFIX = "refresh:";
     private static final String BLACKLIST_PREFIX = "bl:";
@@ -37,6 +41,7 @@ public class AuthService {
     private final StringRedisTemplate redis;
     private final OtpService otpService;
     private final EmailService emailService;
+    private final RateLimitService rateLimitService;
 
     public AuthService(UserRepository userRepository,
                        PasswordEncoder passwordEncoder,
@@ -44,7 +49,8 @@ public class AuthService {
                        JwtProperties jwtProperties,
                        StringRedisTemplate redis,
                        OtpService otpService,
-                       EmailService emailService) {
+                       EmailService emailService,
+                       RateLimitService rateLimitService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenService = jwtTokenService;
@@ -52,6 +58,7 @@ public class AuthService {
         this.redis = redis;
         this.otpService = otpService;
         this.emailService = emailService;
+        this.rateLimitService = rateLimitService;
     }
 
     @Transactional
@@ -79,8 +86,15 @@ public class AuthService {
 
     // noRollbackFor: the failed-attempt counter must survive the thrown
     // UnauthorizedException, otherwise account lockout never triggers
-    @Transactional(noRollbackFor = UnauthorizedException.class)
+    @Transactional(noRollbackFor = {UnauthorizedException.class, TooManyRequestsException.class})
     public AuthResponse login(LoginRequest req) {
+        // Account-scoped attempt cap — robust behind a single-IP BFF where a
+        // per-IP limit would either lock out everyone or nobody.
+        if (!rateLimitService.allow("login:" + req.identifier().toLowerCase(),
+                LOGIN_ATTEMPTS_PER_WINDOW, LOGIN_WINDOW)) {
+            throw new TooManyRequestsException("Too many login attempts. Try again later.");
+        }
+
         User user = userRepository
                 .findByPhoneNumberOrEmail(req.identifier(), req.identifier())
                 .orElseThrow(() -> new UnauthorizedException("Invalid credentials"));
@@ -114,13 +128,12 @@ public class AuthService {
     }
 
     public AuthResponse refresh(String refreshToken) {
-        String key = REFRESH_PREFIX + refreshToken;
-        String userId = redis.opsForValue().get(key);
+        // Atomic get-and-delete: two concurrent requests with the same token
+        // can't both pass, so rotation is genuinely single-use.
+        String userId = redis.opsForValue().getAndDelete(REFRESH_PREFIX + refreshToken);
         if (userId == null) {
             throw new UnauthorizedException("Invalid or expired refresh token");
         }
-        // Rotation: old token is single-use
-        redis.delete(key);
 
         User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new UnauthorizedException("User no longer exists"));

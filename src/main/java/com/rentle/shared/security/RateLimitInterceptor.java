@@ -1,21 +1,26 @@
 package com.rentle.shared.security;
 
+import com.rentle.shared.api.JsonErrorWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.Duration;
 
 /**
- * Redis-backed fixed-window rate limiting per client IP.
- * 60 rpm on all API routes; 5 login attempts per 15 minutes.
+ * Redis-backed fixed-window request throttling. Keyed by authenticated user id
+ * when present, else client IP — so that a same-origin BFF (all traffic from one
+ * host IP) does not turn the per-IP cap into a global lockout. Auth-endpoint
+ * limits (login attempts, OTP) are account-scoped inside the services.
  */
 @Component
 public class RateLimitInterceptor implements HandlerInterceptor {
 
-    static final int DEFAULT_RPM = 60;
-    static final int LOGIN_PER_15_MIN = 5;
+    static final int DEFAULT_RPM = 120;
 
     private final RateLimitService rateLimitService;
 
@@ -26,20 +31,21 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
             throws Exception {
-        String ip = clientIp(request);
-
-        if (!rateLimitService.allow("ip:" + ip, DEFAULT_RPM, Duration.ofMinutes(1))) {
-            response.sendError(429, "Too many requests");
+        String key = callerKey(request);
+        if (!rateLimitService.allow("req:" + key, DEFAULT_RPM, Duration.ofMinutes(1))) {
+            JsonErrorWriter.write(response, 429, "Too many requests. Please slow down.");
             return false;
         }
-
-        if ("POST".equals(request.getMethod()) && request.getRequestURI().endsWith("/auth/login")) {
-            if (!rateLimitService.allow("login:" + ip, LOGIN_PER_15_MIN, Duration.ofMinutes(15))) {
-                response.sendError(429, "Too many login attempts, try again later");
-                return false;
-            }
-        }
         return true;
+    }
+
+    /** Authenticated user id when available, else the client IP. */
+    private String callerKey(HttpServletRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof Jwt jwt) {
+            return "u:" + jwt.getSubject();
+        }
+        return "ip:" + clientIp(request);
     }
 
     private String clientIp(HttpServletRequest request) {

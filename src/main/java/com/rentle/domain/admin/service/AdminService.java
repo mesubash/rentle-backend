@@ -12,6 +12,7 @@ import com.rentle.shared.api.PageResponse;
 import com.rentle.shared.exception.RentleException;
 import com.rentle.shared.exception.ResourceNotFoundException;
 import com.rentle.shared.notification.SmsService;
+import com.rentle.shared.security.TokenRevocationService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,15 +26,18 @@ public class AdminService {
     private final BookingRepository bookingRepository;
     private final ListingRepository listingRepository;
     private final SmsService smsService;
+    private final TokenRevocationService tokenRevocation;
 
     public AdminService(UserRepository userRepository,
                         BookingRepository bookingRepository,
                         ListingRepository listingRepository,
-                        SmsService smsService) {
+                        SmsService smsService,
+                        TokenRevocationService tokenRevocation) {
         this.userRepository = userRepository;
         this.bookingRepository = bookingRepository;
         this.listingRepository = listingRepository;
         this.smsService = smsService;
+        this.tokenRevocation = tokenRevocation;
     }
 
     @Transactional(readOnly = true)
@@ -65,7 +69,11 @@ public class AdminService {
     public UserProfileResponse suspend(UUID userId) {
         User user = getUser(userId);
         user.setStatus(UserStatus.SUSPENDED);
-        return UserProfileResponse.from(userRepository.save(user));
+        user = userRepository.save(user);
+        // Revoke any already-issued access tokens immediately (they otherwise
+        // stay valid until their 15-minute expiry).
+        tokenRevocation.revokeUser(userId);
+        return UserProfileResponse.from(user);
     }
 
     @Transactional
@@ -77,7 +85,9 @@ public class AdminService {
         user.setStatus(Boolean.TRUE.equals(user.getCitizenshipVerified())
                 ? UserStatus.VERIFIED
                 : UserStatus.PENDING_VERIFICATION);
-        return UserProfileResponse.from(userRepository.save(user));
+        user = userRepository.save(user);
+        tokenRevocation.clearUser(userId);
+        return UserProfileResponse.from(user);
     }
 
     @Transactional(readOnly = true)

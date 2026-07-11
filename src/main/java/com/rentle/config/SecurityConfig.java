@@ -3,10 +3,12 @@ package com.rentle.config;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import com.rentle.shared.api.JsonErrorWriter;
 import com.rentle.shared.security.JwtKeyProvider;
+import com.rentle.shared.security.TokenRevocationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -22,10 +24,9 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.web.access.AccessDeniedHandler;
 
 import java.util.List;
 
@@ -35,11 +36,15 @@ import java.util.List;
 public class SecurityConfig {
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, JwtAuthenticationConverter jwtAuthConverter)
-            throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http,
+                                           JwtAuthenticationConverter jwtAuthConverter,
+                                           AuthenticationEntryPoint authenticationEntryPoint,
+                                           AccessDeniedHandler accessDeniedHandler) throws Exception {
         http
+            // No CORS config: the app is reached through a same-origin BFF proxy, so
+            // the browser never calls this API cross-origin. A direct API consumer
+            // uses the bearer token in the Authorization header (not subject to CORS).
             .csrf(csrf -> csrf.disable())
-            .cors(cors -> {})
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/v1/auth/**").permitAll()
@@ -55,6 +60,12 @@ public class SecurityConfig {
             )
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthConverter))
+                .authenticationEntryPoint(authenticationEntryPoint)
+                .accessDeniedHandler(accessDeniedHandler)
+            )
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(authenticationEntryPoint)
+                .accessDeniedHandler(accessDeniedHandler)
             );
         return http.build();
     }
@@ -80,14 +91,17 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtDecoder jwtDecoder(JwtKeyProvider keys, StringRedisTemplate redis) {
+    public JwtDecoder jwtDecoder(JwtKeyProvider keys, TokenRevocationService revocation) {
         NimbusJwtDecoder delegate = NimbusJwtDecoder.withPublicKey(keys.publicKey()).build();
-        // Wrap with revocation check: logout blacklists the access token's jti
+        // Reject tokens revoked at logout (by jti) or when the user is suspended
+        // (by subject) before their natural 15-minute expiry.
         return token -> {
             Jwt jwt = delegate.decode(token);
-            String jti = jwt.getId();
-            if (jti != null && Boolean.TRUE.equals(redis.hasKey("bl:" + jti))) {
+            if (revocation.isTokenRevoked(jwt.getId())) {
                 throw new JwtException("Token has been revoked");
+            }
+            if (revocation.isUserRevoked(jwt.getSubject())) {
+                throw new JwtException("Account access has been revoked");
             }
             return jwt;
         };
@@ -98,16 +112,17 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder(12);
     }
 
+    /** 401 in the standard envelope for missing/invalid/expired tokens. */
     @Bean
-    public CorsConfigurationSource corsConfigurationSource(RentleProperties props) {
-        CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(props.corsAllowedOrigins());
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type"));
-        config.setMaxAge(3600L);
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/**", config);
-        source.registerCorsConfiguration("/files/**", config);
-        return source;
+    public AuthenticationEntryPoint authenticationEntryPoint() {
+        return (request, response, ex) ->
+                JsonErrorWriter.write(response, HttpStatus.UNAUTHORIZED.value(), "Authentication required");
+    }
+
+    /** 403 in the standard envelope for authenticated-but-forbidden requests. */
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler() {
+        return (request, response, ex) ->
+                JsonErrorWriter.write(response, HttpStatus.FORBIDDEN.value(), "You do not have access to this resource");
     }
 }
