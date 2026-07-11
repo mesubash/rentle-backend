@@ -8,6 +8,7 @@ import com.rentle.domain.booking.repository.BookingRepository;
 import com.rentle.domain.listing.model.Listing;
 import com.rentle.domain.listing.model.ListingStatus;
 import com.rentle.domain.listing.model.ListingType;
+import com.rentle.domain.listing.model.PriceUnit;
 import com.rentle.domain.listing.repository.ListingRepository;
 import com.rentle.domain.listing.repository.ProductDetailRepository;
 import com.rentle.domain.listing.repository.ServiceDetailRepository;
@@ -89,7 +90,8 @@ public class BookingService {
         validateDates(listing, req);
 
         // Availability pre-check (GiST exclusion constraint is the final guard)
-        availabilityService.assertAvailable(req.listingId(), req.startDate(), req.endDate());
+        availabilityService.assertAvailable(
+                req.listingId(), listing.getPriceUnit(), req.startDate(), req.endDate());
 
         BigDecimal price = pricingService.calculate(
                 listing, req.startDate(), req.endDate(), req.startTime(), req.endTime());
@@ -218,6 +220,19 @@ public class BookingService {
         }
         if (req.startDate().isBefore(LocalDate.now())) {
             throw new RentleException("Start date cannot be in the past");
+        }
+        // Hourly bookings are a single day's time window; a multi-day span would be
+        // mispriced and ambiguous, so require one day and both times.
+        if (listing.getPriceUnit() == PriceUnit.PER_HOUR) {
+            if (!req.startDate().equals(req.endDate())) {
+                throw new RentleException("Hourly bookings must start and end on the same day");
+            }
+            if (req.startTime() == null || req.endTime() == null) {
+                throw new RentleException("Start and end time are required for hourly listings");
+            }
+            if (!req.endTime().isAfter(req.startTime())) {
+                throw new RentleException("End time must be after start time");
+            }
         }
 
         if (listing.getType() == ListingType.PRODUCT) {

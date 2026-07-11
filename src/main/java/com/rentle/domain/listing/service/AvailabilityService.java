@@ -6,6 +6,7 @@ import com.rentle.domain.booking.repository.BookingRepository;
 import com.rentle.domain.listing.dto.AvailabilityResponse;
 import com.rentle.domain.listing.dto.BlockDatesRequest;
 import com.rentle.domain.listing.model.Listing;
+import com.rentle.domain.listing.model.PriceUnit;
 import com.rentle.domain.listing.model.UnavailableRange;
 import com.rentle.domain.listing.repository.ListingRepository;
 import com.rentle.domain.listing.repository.UnavailableRangeRepository;
@@ -40,10 +41,18 @@ public class AvailabilityService {
         this.listingRepository = listingRepository;
     }
 
-    /** Pre-check before booking creation; the GiST exclusion constraint is the final guard. */
+    /**
+     * Pre-check before booking creation; the GiST exclusion constraint is the final
+     * guard. For hourly listings the friendly date-granular booking pre-check would
+     * wrongly reject non-overlapping same-day slots, so it is skipped there and the
+     * time-aware DB constraint handles conflicts (surfaced as a 409). Owner-blocked
+     * ranges are always whole-day and always checked.
+     */
     @Transactional(readOnly = true)
-    public void assertAvailable(UUID listingId, LocalDate startDate, LocalDate endDate) {
-        if (bookingRepository.existsOverlap(listingId, startDate, endDate)) {
+    public void assertAvailable(UUID listingId, PriceUnit priceUnit,
+                                LocalDate startDate, LocalDate endDate) {
+        if (priceUnit != PriceUnit.PER_HOUR
+                && bookingRepository.existsOverlap(listingId, startDate, endDate)) {
             throw new BookingConflictException("Listing is already booked for the selected dates");
         }
         if (unavailableRangeRepository.existsOverlap(listingId, startDate, endDate)) {

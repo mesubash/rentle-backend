@@ -41,6 +41,7 @@ import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -139,10 +140,12 @@ class BookingFlowIntegrationTest {
         reviewService.create(renter.getId(), new CreateReviewRequest(booking.id(), 5, "Great owner"));
         reviewService.create(owner.getId(), new CreateReviewRequest(booking.id(), 4, "Careful renter"));
 
-        // DB triggers recalculated aggregates
+        // DB triggers recalculated aggregates. The listing rating reflects only
+        // reviews *about the owner* (the renter's 5-star), not the owner's review
+        // of the renter — so count is 1 and average is 5.00, not 2 reviews / 4.5.
         Listing refreshed = listingRepository.findById(listing.getId()).orElseThrow();
-        assertEquals(2, refreshed.getReviewCount());
-        assertNotNull(refreshed.getAverageRating());
+        assertEquals(1, refreshed.getReviewCount());
+        assertEquals(0, new BigDecimal("5.00").compareTo(refreshed.getAverageRating()));
         assertEquals(1, refreshed.getTotalBookings());
 
         User refreshedOwner = userRepository.findById(owner.getId()).orElseThrow();
@@ -250,5 +253,62 @@ class BookingFlowIntegrationTest {
                 new ProductDetailDto(ItemCondition.GOOD, "Nikon", "D850", 1, 30), null);
 
         assertThrows(UnauthorizedException.class, () -> listingService.create(pending.getId(), req));
+    }
+
+    // --- Hourly service bookings: time-aware overlap ---
+
+    private Listing createHourlyService(User listingOwner) {
+        Category category = categoryRepository.findBySlug("event-photography").orElseThrow();
+        Listing l = new Listing();
+        l.setOwner(listingOwner);
+        l.setCategory(category);
+        l.setType(ListingType.SERVICE);
+        l.setStatus(ListingStatus.ACTIVE);
+        l.setTitle("Event photographer for hire");
+        l.setDescription("Professional event photography charged by the hour in Kathmandu valley.");
+        l.setPricePerUnit(new BigDecimal("500.00"));
+        l.setPriceUnit(PriceUnit.PER_HOUR);
+        l.setDistrict("Kathmandu");
+        l.setDepositAmount(BigDecimal.ZERO);
+        return listingRepository.save(l);
+    }
+
+    private CreateBookingRequest hourlyRequest(UUID listingId, int dayOffset, LocalTime start, LocalTime end) {
+        LocalDate day = LocalDate.now().plusDays(dayOffset);
+        return new CreateBookingRequest(listingId, day, day, start, end, "test");
+    }
+
+    @Test
+    void hourlyServiceAllowsNonOverlappingSameDaySlots() {
+        Listing listing = createHourlyService(owner);
+        bookingService.createBooking(renter.getId(),
+                hourlyRequest(listing.getId(), 5, LocalTime.of(9, 0), LocalTime.of(11, 0)));
+
+        User secondRenter = createUser(UserStatus.VERIFIED);
+        BookingResponse second = bookingService.createBooking(secondRenter.getId(),
+                hourlyRequest(listing.getId(), 5, LocalTime.of(14, 0), LocalTime.of(16, 0)));
+        assertEquals("REQUESTED", second.status());
+        assertEquals(new BigDecimal("1000.00"), second.totalPrice()); // 500/hr × 2h
+    }
+
+    @Test
+    void hourlyServiceRejectsOverlappingSameDaySlots() {
+        Listing listing = createHourlyService(owner);
+        bookingService.createBooking(renter.getId(),
+                hourlyRequest(listing.getId(), 5, LocalTime.of(9, 0), LocalTime.of(12, 0)));
+
+        User secondRenter = createUser(UserStatus.VERIFIED);
+        assertThrows(Exception.class, () -> bookingService.createBooking(secondRenter.getId(),
+                hourlyRequest(listing.getId(), 5, LocalTime.of(11, 0), LocalTime.of(13, 0))));
+    }
+
+    @Test
+    void hourlyBookingRejectsMultiDaySpan() {
+        Listing listing = createHourlyService(owner);
+        LocalDate day = LocalDate.now().plusDays(5);
+        CreateBookingRequest multiDay = new CreateBookingRequest(
+                listing.getId(), day, day.plusDays(1), LocalTime.of(9, 0), LocalTime.of(11, 0), null);
+        assertThrows(RentleException.class,
+                () -> bookingService.createBooking(renter.getId(), multiDay));
     }
 }
