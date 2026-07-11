@@ -8,6 +8,11 @@
 
 ## 1. What you are designing
 
+You are designing the **Rentle web application** — a desktop-browser product that is
+fully responsive down to phone width. Phase 1 is web only (no native app); many users
+will still open it on their phone's browser, so every screen must degrade gracefully,
+but the primary canvas is the desktop web experience.
+
 **Rentle** is a peer-to-peer marketplace for Nepal where people rent physical items
 (cameras, tech gear, sarees, traditional costumes) and book local services (movers,
 photographers, event help) from other verified people nearby. Think "Airbnb's trust
@@ -97,8 +102,11 @@ mean something.
 
 ### Layout & components
 
-- **Mobile-first.** Design at 390px first; desktop is an adaptation (max content width
-  ~1200px). Bottom tab bar on mobile: Explore, Bookings, Messages (badge), Profile.
+- **Web-first, mobile-responsive.** Design the desktop layout first at ~1280px
+  (max content width ~1200px), then show how it adapts at 390px. Desktop navigation:
+  slim top bar — logo, search, Explore, Bookings, Messages (badge), profile menu, and
+  a persistent "List an item" button in pine. On phone widths the top bar collapses
+  and a bottom tab bar takes over: Explore, Bookings, Messages, Profile.
 - One strong layout primitive, repeated: a flat card on paper background with a 1px
   stone border, small radius (6–8px), no drop shadows or at most one barely-there
   elevation for overlays. Density over airiness — listings should feel like a busy,
@@ -147,8 +155,9 @@ Name", or "Lorem ipsum".
   45–75 characters, spacing on a 4px grid with an 8/16/24/32 rhythm. Serif display
   sizes tuned so long Nepali item titles wrap to two lines gracefully, never truncate
   mid-word.
-- **Thumb ergonomics:** all touch targets ≥ 44px, primary actions and the booking bar
-  in the bottom third of the screen, destructive actions never adjacent to primary ones.
+- **Input ergonomics:** comfortable pointer targets on desktop with clear hover
+  states; at phone widths all touch targets ≥ 44px with primary actions reachable in
+  the bottom third. Destructive actions never adjacent to primary ones at any width.
 - **Every action answers back.** Optimistic or explicit feedback for each tap:
   pressed states, button spinners on submit, toast/inline confirmation with what
   happened and what's next. Skeleton placeholders (paper-tone, no shimmer circus) for
@@ -218,8 +227,12 @@ These are the recognizable fingerprints of AI-generated design. None may appear:
     submissions, image viewer, approve/reject; plus simple read-only lists of users,
     listings, bookings. Same design language, denser.
 
-For each screen, produce the mobile layout first; desktop where it meaningfully
-differs (Explore, Listing detail, Admin).
+For each screen, produce the desktop web layout first, then the 390px responsive
+variant. Screens where the two differ most — Explore (grid vs. single column),
+Listing detail (two-column with sticky booking panel vs. stacked with sticky bottom
+bar), and Booking detail (side-by-side facts + thread vs. stacked) — deserve both
+treatments in full; simpler screens can show desktop plus a brief note on how they
+collapse.
 
 ---
 
