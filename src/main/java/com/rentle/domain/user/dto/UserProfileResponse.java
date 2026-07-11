@@ -20,11 +20,15 @@ public record UserProfileResponse(
         boolean phoneVerified,
         boolean emailVerified,
         boolean citizenshipVerified,
-        boolean citizenshipUploaded,
+        String kycStatus,         // null | SUBMITTED | APPROVED | REJECTED
         BigDecimal trustScore,
         Instant createdAt
 ) {
     public static UserProfileResponse from(User u) {
+        return from(u, null);
+    }
+
+    public static UserProfileResponse from(User u, String kycStatus) {
         return new UserProfileResponse(
                 u.getId(),
                 u.getPhoneNumber(),
@@ -38,7 +42,7 @@ public record UserProfileResponse(
                 Boolean.TRUE.equals(u.getPhoneVerified()),
                 Boolean.TRUE.equals(u.getEmailVerified()),
                 Boolean.TRUE.equals(u.getCitizenshipVerified()),
-                u.getCitizenshipCardUrl() != null,
+                kycStatus,
                 u.getTrustScore(),
                 u.getCreatedAt()
         );

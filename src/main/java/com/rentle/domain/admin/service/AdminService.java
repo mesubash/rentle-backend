@@ -11,7 +11,6 @@ import com.rentle.domain.user.repository.UserRepository;
 import com.rentle.shared.api.PageResponse;
 import com.rentle.shared.exception.RentleException;
 import com.rentle.shared.exception.ResourceNotFoundException;
-import com.rentle.shared.notification.SmsService;
 import com.rentle.shared.security.TokenRevocationService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -25,18 +24,15 @@ public class AdminService {
     private final UserRepository userRepository;
     private final BookingRepository bookingRepository;
     private final ListingRepository listingRepository;
-    private final SmsService smsService;
     private final TokenRevocationService tokenRevocation;
 
     public AdminService(UserRepository userRepository,
                         BookingRepository bookingRepository,
                         ListingRepository listingRepository,
-                        SmsService smsService,
                         TokenRevocationService tokenRevocation) {
         this.userRepository = userRepository;
         this.bookingRepository = bookingRepository;
         this.listingRepository = listingRepository;
-        this.smsService = smsService;
         this.tokenRevocation = tokenRevocation;
     }
 
@@ -46,26 +42,6 @@ public class AdminService {
                 ? userRepository.findByStatus(status, pageable)
                 : userRepository.findAll(pageable);
         return PageResponse.from(page, UserProfileResponse::from);
-    }
-
-    @Transactional
-    public UserProfileResponse verifyCitizenship(UUID userId) {
-        User user = getUser(userId);
-        if (user.getCitizenshipCardUrl() == null) {
-            throw new RentleException("User has not uploaded a citizenship card");
-        }
-        if (!Boolean.TRUE.equals(user.getPhoneVerified())) {
-            throw new RentleException("Phone must be verified before citizenship approval");
-        }
-        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
-            throw new RentleException("Email must be verified before citizenship approval");
-        }
-        user.setCitizenshipVerified(true);
-        user.setStatus(UserStatus.VERIFIED);
-        user = userRepository.save(user);
-        smsService.send(user.getPhoneNumber(),
-                "Your Rentle identity verification is approved. You can now create listings.");
-        return UserProfileResponse.from(user);
     }
 
     @Transactional

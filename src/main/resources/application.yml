@@ -32,6 +32,13 @@ spring:
       max-file-size: 10MB
       max-request-size: 25MB
 
+# KYC submits ~17 form fields + 2 files as multipart parts; raise Tomcat's default
+# part/parameter limits so the whole form is accepted.
+server:
+  tomcat:
+    max-part-count: 60
+    max-parameter-count: 100
+
 management:
   endpoints:
     web:
