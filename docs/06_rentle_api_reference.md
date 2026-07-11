@@ -30,6 +30,7 @@ after completion.
   - [PUT /users/me](#put-usersme)
   - [POST /users/me/photo](#post-usersmephoto)
   - [POST /users/me/citizenship](#post-usersmecitizenship)
+  - [GET /users/me/citizenship](#get-usersmecitizenship)
   - [GET /users/{id}](#get-usersid)
   - [GET /users/{id}/listings](#get-usersidlistings)
   - [GET /users/{id}/reviews](#get-usersidreviews)
@@ -61,6 +62,7 @@ after completion.
   - [POST /bookings/{id}/complete](#post-bookingsidcomplete)
   - [POST /bookings/{id}/cancel](#post-bookingsidcancel)
 - [7. Messages](#7-messages)
+  - [GET /messages/unread-count](#get-messagesunread-count)
   - [GET /bookings/{bookingId}/messages](#get-bookingsbookingidmessages)
   - [POST /bookings/{bookingId}/messages](#post-bookingsbookingidmessages)
   - [PUT /bookings/{bookingId}/messages/read](#put-bookingsbookingidmessagesread)
@@ -305,6 +307,15 @@ Upload a citizenship card for identity verification. `multipart/form-data`, fiel
 
 **Auth:** bearer · **`200 OK`** → [`UserProfile`](#userprofile) (`citizenshipUploaded: true`).
 **Errors:** `400` already verified.
+
+The document is stored privately (never under the public `/files` path) and is only
+retrievable through the two authenticated endpoints below.
+
+### GET /users/me/citizenship
+
+Stream the caller's own citizenship image.
+
+**Auth:** bearer · **`200 OK`** → the raw image (`image/*`). **Errors:** `404` none on file.
 
 ### GET /users/{id}
 
@@ -573,6 +584,13 @@ Either participant cancels a non-terminal booking → `CANCELLED`.
 
 ## 7. Messages
 
+### GET /messages/unread-count
+
+Total unread messages across every booking the caller participates in — backs the
+navigation badge.
+
+**Auth:** bearer · **`200 OK`** → `{ "data": { "count": 3 }, ... }`.
+
 Messages are scoped to a booking — there are no standalone DMs. The thread opens once
 the booking is `APPROVED` and closes to new messages only when terminal-before-approval
 (`REQUESTED`/`REJECTED`/`CANCELLED-from-requested`). Poll every ~30 s (no websockets
@@ -632,6 +650,11 @@ All `/admin/**` endpoints require role `ADMIN`; others receive `403`.
 All users, paginated (newest first, size ≤ 100). Optional `status` filter
 (`UserStatus`).
 **Auth:** ADMIN · **`200 OK`** → page of [`UserProfile`](#userprofile).
+
+### GET /admin/users/{id}/citizenship
+
+Stream a user's citizenship image for verification review.
+**Auth:** ADMIN · **`200 OK`** → the raw image (`image/*`). **Errors:** `404` none on file.
 
 ### PUT /admin/users/{id}/verify
 
