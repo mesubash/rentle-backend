@@ -85,6 +85,11 @@ public class MessageService {
         return messageRepository.markAllRead(bookingId, actorId, Instant.now());
     }
 
+    @Transactional(readOnly = true)
+    public long unreadCount(UUID userId) {
+        return messageRepository.countUnreadForUser(userId);
+    }
+
     private Booking getBookingForParticipant(UUID bookingId, UUID actorId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Booking not found"));

@@ -17,6 +17,15 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     long countByBookingId(UUID bookingId);
 
+    /** Unread messages across every booking the user participates in (sent by the other party). */
+    @Query("""
+        SELECT COUNT(m) FROM Message m
+        WHERE m.isRead = false
+        AND m.sender.id <> :userId
+        AND (m.booking.renter.id = :userId OR m.booking.listing.owner.id = :userId)
+    """)
+    long countUnreadForUser(@Param("userId") UUID userId);
+
     @Modifying
     @Query("""
         UPDATE Message m SET m.isRead = true, m.readAt = :now
