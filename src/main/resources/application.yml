@@ -46,6 +46,7 @@ rentle:
   storage: ${RENTLE_STORAGE:local}
   local-upload-dir: ${RENTLE_UPLOAD_DIR:uploads}
   sms: ${RENTLE_SMS:logging}
+  cors-allowed-origins: ${RENTLE_CORS_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:8081,https://*.lovable.app,https://*.lovableproject.com}
 
 jwt:
   # PEM strings; blank = ephemeral dev keypair generated at startup
