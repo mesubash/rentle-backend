@@ -3,6 +3,7 @@ package com.rentle.domain.admin.controller;
 import com.rentle.domain.admin.service.AdminService;
 import com.rentle.domain.booking.dto.BookingResponse;
 import com.rentle.domain.listing.dto.ListingSummaryResponse;
+import com.rentle.domain.platform.catalog.PermissionKeys;
 import com.rentle.domain.user.dto.KycAdminRow;
 import com.rentle.domain.user.dto.KycResponse;
 import com.rentle.domain.user.dto.ReasonRequest;
@@ -33,7 +34,6 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/admin")
-@PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     private final AdminService adminService;
@@ -45,6 +45,7 @@ public class AdminController {
     }
 
     @GetMapping("/users")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.IDENTITY_USER_READ + "')")
     public ApiResponse<PageResponse<UserProfileResponse>> users(
             @RequestParam(required = false) UserStatus status,
             @RequestParam(defaultValue = "0") int page,
@@ -55,6 +56,7 @@ public class AdminController {
     // --- KYC review queue ---
 
     @GetMapping("/kyc")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.KYC_SUBMISSION_READ + "')")
     public ApiResponse<PageResponse<KycAdminRow>> kycQueue(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -63,11 +65,13 @@ public class AdminController {
     }
 
     @GetMapping("/kyc/{userId}")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.KYC_SUBMISSION_READ + "')")
     public ApiResponse<KycResponse> kycDetail(@PathVariable UUID userId) {
         return ApiResponse.ok(kycService.detail(userId));
     }
 
     @GetMapping("/users/{id}/citizenship")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.KYC_SUBMISSION_READ + "')")
     public ResponseEntity<Resource> citizenship(@PathVariable UUID id,
                                                 @RequestParam(defaultValue = "front") String side) {
         KycService.KycImage image = kycService.loadDocument(id, side);
@@ -77,11 +81,13 @@ public class AdminController {
     }
 
     @PutMapping("/users/{id}/verify")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.KYC_SUBMISSION_APPROVE + "')")
     public ApiResponse<KycResponse> approveKyc(@PathVariable UUID id) {
         return ApiResponse.ok(kycService.approve(SecurityUtils.currentUserId(), id));
     }
 
     @PutMapping("/users/{id}/reject-kyc")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.KYC_SUBMISSION_REJECT + "')")
     public ApiResponse<KycResponse> rejectKyc(@PathVariable UUID id,
                                               @Valid @RequestBody(required = false) ReasonRequest request) {
         return ApiResponse.ok(kycService.reject(
@@ -89,16 +95,19 @@ public class AdminController {
     }
 
     @PutMapping("/users/{id}/suspend")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.IDENTITY_USER_SUSPEND + "')")
     public ApiResponse<UserProfileResponse> suspend(@PathVariable UUID id) {
         return ApiResponse.ok(adminService.suspend(id));
     }
 
     @PutMapping("/users/{id}/unsuspend")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.IDENTITY_USER_SUSPEND + "')")
     public ApiResponse<UserProfileResponse> unsuspend(@PathVariable UUID id) {
         return ApiResponse.ok(adminService.unsuspend(id));
     }
 
     @GetMapping("/bookings")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.BOOKING_BOOKING_READ + "')")
     public ApiResponse<PageResponse<BookingResponse>> bookings(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -106,6 +115,7 @@ public class AdminController {
     }
 
     @GetMapping("/listings")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.LISTING_LISTING_READ + "')")
     public ApiResponse<PageResponse<ListingSummaryResponse>> listings(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {

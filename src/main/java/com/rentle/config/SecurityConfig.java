@@ -68,7 +68,7 @@ public class SecurityConfig {
                         "/api/v1/users/*/listings",
                         "/api/v1/users/*/reviews").permitAll()
                 .requestMatchers("/files/**", "/actuator/health", "/actuator/info").permitAll()
-                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/admin/**").authenticated()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
