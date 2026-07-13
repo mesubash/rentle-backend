@@ -224,8 +224,8 @@ domain/platform/catalog/
 │                               //   platform.scope.read, platform.scope.manage
 ├── IdentityPermissions.java    // identity.user.read, identity.user.suspend
 ├── KycPermissions.java         // kyc.submission.read / approve / reject
-├── ListingPermissions.java     // listing.listing.read_all, listing.listing.moderate, listing.category.manage
-├── BookingPermissions.java     // booking.booking.read_all
+├── ListingPermissions.java     // listing.listing.read, listing.listing.moderate, listing.category.manage
+├── BookingPermissions.java     // booking.booking.read
 ├── PermissionKeys.java         // public static final String constants for every key —
 │                               //   the ONLY strings ever used in @PreAuthorize later
 └── RoleSeeds.java              // static definitions of the seed bundles from docs/08 §4:
