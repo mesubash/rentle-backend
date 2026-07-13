@@ -24,6 +24,7 @@ public class RoleSeeds {
                 PermissionKeys.PLATFORM_SCOPE_MANAGE,
                 PermissionKeys.IDENTITY_USER_READ,
                 PermissionKeys.IDENTITY_USER_SUSPEND,
+                PermissionKeys.IDENTITY_USER_RESET_PASSWORD,
                 PermissionKeys.KYC_SUBMISSION_READ,
                 PermissionKeys.KYC_SUBMISSION_APPROVE,
                 PermissionKeys.KYC_SUBMISSION_REJECT,

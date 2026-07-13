@@ -7,6 +7,7 @@ import com.rentle.domain.platform.catalog.PermissionKeys;
 import com.rentle.domain.user.dto.KycAdminRow;
 import com.rentle.domain.user.dto.KycResponse;
 import com.rentle.domain.user.dto.ReasonRequest;
+import com.rentle.domain.user.dto.ResetPasswordRequest;
 import com.rentle.domain.user.dto.UserProfileResponse;
 import com.rentle.domain.user.model.UserStatus;
 import com.rentle.domain.user.service.KycService;
@@ -97,13 +98,21 @@ public class AdminController {
     @PutMapping("/users/{id}/suspend")
     @PreAuthorize("hasAuthority('" + PermissionKeys.IDENTITY_USER_SUSPEND + "')")
     public ApiResponse<UserProfileResponse> suspend(@PathVariable UUID id) {
-        return ApiResponse.ok(adminService.suspend(id));
+        return ApiResponse.ok(adminService.suspend(SecurityUtils.currentUserId(), id));
     }
 
     @PutMapping("/users/{id}/unsuspend")
     @PreAuthorize("hasAuthority('" + PermissionKeys.IDENTITY_USER_SUSPEND + "')")
     public ApiResponse<UserProfileResponse> unsuspend(@PathVariable UUID id) {
         return ApiResponse.ok(adminService.unsuspend(id));
+    }
+
+    @PutMapping("/users/{id}/password")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.IDENTITY_USER_RESET_PASSWORD + "')")
+    public ApiResponse<String> resetPassword(@PathVariable UUID id,
+                                             @Valid @RequestBody ResetPasswordRequest request) {
+        adminService.resetPassword(SecurityUtils.currentUserId(), id, request.password());
+        return ApiResponse.ok("Password updated");
     }
 
     @GetMapping("/bookings")

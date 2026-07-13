@@ -13,6 +13,7 @@ public final class PermissionKeys {
 
     public static final String IDENTITY_USER_READ = "identity.user.read";
     public static final String IDENTITY_USER_SUSPEND = "identity.user.suspend";
+    public static final String IDENTITY_USER_RESET_PASSWORD = "identity.user.reset_password";
 
     public static final String KYC_SUBMISSION_READ = "kyc.submission.read";
     public static final String KYC_SUBMISSION_APPROVE = "kyc.submission.approve";

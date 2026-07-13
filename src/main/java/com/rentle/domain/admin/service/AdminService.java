@@ -14,6 +14,7 @@ import com.rentle.shared.api.PageResponse;
 import com.rentle.shared.exception.RentleException;
 import com.rentle.shared.exception.ResourceNotFoundException;
 import com.rentle.shared.security.TokenRevocationService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,15 +30,35 @@ public class AdminService {
     private final BookingRepository bookingRepository;
     private final ListingRepository listingRepository;
     private final TokenRevocationService tokenRevocation;
+    private final PasswordEncoder passwordEncoder;
 
     public AdminService(UserRepository userRepository,
                         BookingRepository bookingRepository,
                         ListingRepository listingRepository,
-                        TokenRevocationService tokenRevocation) {
+                        TokenRevocationService tokenRevocation,
+                        PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.bookingRepository = bookingRepository;
         this.listingRepository = listingRepository;
         this.tokenRevocation = tokenRevocation;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    /**
+     * Staff sets a new password for any account. Old sessions are revoked and any
+     * failed-login lockout is cleared, so the user can sign in immediately with the
+     * new password. The plaintext is never stored or logged.
+     */
+    @Transactional
+    public void resetPassword(UUID actorId, UUID userId, String newPassword) {
+        User user = getUser(userId);
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+        userRepository.save(user);
+        // Force re-authentication everywhere the password just changed under.
+        tokenRevocation.revokeUser(userId);
+        log.info("Password reset for user {} by {}", userId, actorId);
     }
 
     @Transactional(readOnly = true)
@@ -49,7 +70,10 @@ public class AdminService {
     }
 
     @Transactional
-    public UserProfileResponse suspend(UUID userId) {
+    public UserProfileResponse suspend(UUID actorId, UUID userId) {
+        if (actorId.equals(userId)) {
+            throw new RentleException("You cannot suspend your own account");
+        }
         User user = getUser(userId);
         user.setStatus(UserStatus.SUSPENDED);
         user = userRepository.save(user);
