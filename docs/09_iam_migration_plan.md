@@ -1,6 +1,6 @@
 # Rentle IAM Migration Plan — Backend, Iteration 1 (Code-Only)
 
-**Status:** implementation instructions for an AI agent (or developer). Backend only.
+**Status:** Iteration 1 implemented.
 Read this whole document before writing any code.
 
 **What this iteration delivers:** the complete IAM machinery **built into the

@@ -80,6 +80,7 @@ after completion.
   - [GET /admin/bookings](#get-adminbookings)
   - [GET /admin/listings](#get-adminlistings)
 - [10. Object schemas](#10-object-schemas)
+- [11. Platform (IAM) — dormant](#11-platform-iam--dormant)
 
 ---
 
@@ -817,6 +818,34 @@ Card shape for lists and search.
   "subjectId": "uuid", "listingId": "uuid", "rating": 5, "comment": "string|null",
   "createdAt": "timestamp" }
 ```
+
+---
+
+## 11. Platform (IAM) — dormant
+
+The Iteration 1 platform IAM machinery is present, but both
+`rentle.iam.enabled` and `rentle.iam.sync-catalog` default to `false`. No IAM
+catalog, role, scope, or assignment data is created under the default configuration,
+and all existing endpoint access rules remain unchanged.
+
+The new endpoints use the standard `{data, error, timestamp}` envelope:
+
+| Endpoint | Required authority | Purpose |
+|----------|--------------------|---------|
+| `GET /platform/permissions?domain=` | `platform.permission.read` | List registered permissions |
+| `GET /platform/roles` | `platform.role.read` | List roles and their permission keys |
+| `GET /platform/roles/{id}` | `platform.role.read` | Get one role |
+| `POST /platform/roles` | `platform.role.manage` | Create a role |
+| `PUT /platform/roles/{id}` | `platform.role.manage` | Update role details and replace permissions |
+| `DELETE /platform/roles/{id}` | `platform.role.manage` | Delete a non-system role with no live assignments |
+| `GET /platform/assignments?userId=&roleId=` | `platform.assignment.read` | List live assignments |
+| `POST /platform/assignments` | `platform.assignment.manage` | Grant a role at ROOT |
+| `DELETE /platform/assignments/{id}` | `platform.assignment.manage` | Soft-revoke an assignment |
+| `GET /platform/users/lookup?email=` | `identity.user.read` | Look up a user for assignment |
+| `GET /users/me/permissions` | authenticated | Return the caller's resolved permission keys |
+
+Because permission authorities are not added while IAM is disabled, all
+`/platform/**` endpoints are effectively inert under the default configuration.
 
 ---
 
