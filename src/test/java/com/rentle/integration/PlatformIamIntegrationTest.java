@@ -16,6 +16,7 @@ import com.rentle.domain.platform.repository.RolePermissionRepository;
 import com.rentle.domain.platform.repository.RoleRepository;
 import com.rentle.domain.platform.repository.ScopeRepository;
 import com.rentle.domain.platform.service.PermissionResolverService;
+import com.rentle.domain.platform.service.IamCatalogSynchronizer;
 import com.rentle.domain.user.model.User;
 import com.rentle.domain.user.model.UserStatus;
 import com.rentle.domain.user.repository.UserRepository;
@@ -62,7 +63,31 @@ class PlatformIamIntegrationTest {
     @Autowired ScopeRepository scopeRepository;
     @Autowired AssignmentRepository assignmentRepository;
     @Autowired PermissionResolverService permissionResolverService;
+    @Autowired IamCatalogSynchronizer iamCatalogSynchronizer;
     @Autowired JwtTokenService jwtTokenService;
+
+    @Test
+    void synchronizeIsIdempotentAndMakesRootAvailableForAssignments() throws Exception {
+        iamCatalogSynchronizer.synchronize();
+        iamCatalogSynchronizer.synchronize();
+        assertEquals(1, scopeRepository.findAll().stream()
+                .filter(scope -> scope.getType() == ScopeType.ROOT)
+                .count());
+
+        User admin = user("synced-admin");
+        User subject = user("synced-subject");
+        Scope root = scopeRepository.findFirstByType(ScopeType.ROOT).orElseThrow();
+        Role superAdmin = roleRepository.findByName("SUPER_ADMIN").orElseThrow();
+        Role userRole = roleRepository.findByName("USER").orElseThrow();
+        assign(admin, superAdmin, root, null);
+
+        mockMvc.perform(post("/api/v1/platform/assignments")
+                        .header("Authorization", bearer(token(admin)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new AssignmentPayload(subject.getId(), userRole.getId()))))
+                .andExpect(status().isCreated());
+    }
 
     @Test
     void roleCrudRoundTrip() throws Exception {

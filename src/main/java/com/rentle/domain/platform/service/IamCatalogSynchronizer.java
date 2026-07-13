@@ -7,9 +7,12 @@ import com.rentle.domain.platform.catalog.RoleSeeds;
 import com.rentle.domain.platform.model.Permission;
 import com.rentle.domain.platform.model.Role;
 import com.rentle.domain.platform.model.RolePermission;
+import com.rentle.domain.platform.model.Scope;
+import com.rentle.domain.platform.model.ScopeType;
 import com.rentle.domain.platform.repository.PermissionRepository;
 import com.rentle.domain.platform.repository.RolePermissionRepository;
 import com.rentle.domain.platform.repository.RoleRepository;
+import com.rentle.domain.platform.repository.ScopeRepository;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,7 @@ public class IamCatalogSynchronizer {
     private final PermissionRepository permissionRepository;
     private final RoleRepository roleRepository;
     private final RolePermissionRepository rolePermissionRepository;
+    private final ScopeRepository scopeRepository;
     private final RentleProperties properties;
 
     public IamCatalogSynchronizer(List<PermissionCatalog> catalogs,
@@ -34,12 +38,14 @@ public class IamCatalogSynchronizer {
                                   PermissionRepository permissionRepository,
                                   RoleRepository roleRepository,
                                   RolePermissionRepository rolePermissionRepository,
+                                  ScopeRepository scopeRepository,
                                   RentleProperties properties) {
         this.catalogs = catalogs;
         this.roleSeeds = roleSeeds;
         this.permissionRepository = permissionRepository;
         this.roleRepository = roleRepository;
         this.rolePermissionRepository = rolePermissionRepository;
+        this.scopeRepository = scopeRepository;
         this.properties = properties;
     }
 
@@ -53,6 +59,7 @@ public class IamCatalogSynchronizer {
 
     @Transactional
     public void synchronize() {
+        ensureRootScope();
         Map<String, Permission> permissionsByKey = synchronizePermissions();
 
         roleSeeds.roles().forEach((name, definition) -> {
@@ -70,6 +77,15 @@ public class IamCatalogSynchronizer {
             if (created || Boolean.TRUE.equals(role.getIsSystemRole())) {
                 reconcileRolePermissions(role, definition, permissionsByKey);
             }
+        });
+    }
+
+    private Scope ensureRootScope() {
+        return scopeRepository.findFirstByType(ScopeType.ROOT).orElseGet(() -> {
+            Scope root = new Scope();
+            root.setType(ScopeType.ROOT);
+            root.setName("Rentle");
+            return scopeRepository.save(root);
         });
     }
 
