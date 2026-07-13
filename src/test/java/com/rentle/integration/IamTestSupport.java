@@ -84,7 +84,7 @@ final class IamTestSupport {
     }
 
     String token(User user) {
-        return jwtTokenService.createAccessToken(user.getId(), user.getRole().name(), user.getStatus().name());
+        return jwtTokenService.createAccessToken(user.getId(), user.getStatus().name());
     }
 
     String authorization(User user) {

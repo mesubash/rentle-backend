@@ -13,7 +13,6 @@ public record UserProfileResponse(
         String email,
         String fullName,
         String profilePhotoUrl,
-        String role,
         String status,
         String authProvider,      // LOCAL | GOOGLE
         boolean hasPassword,
@@ -35,7 +34,6 @@ public record UserProfileResponse(
                 u.getEmail(),
                 u.getFullName(),
                 u.getProfilePhotoUrl(),
-                u.getRole().name(),
                 u.getStatus().name(),
                 u.getGoogleId() != null ? "GOOGLE" : "LOCAL",
                 u.getPasswordHash() != null,

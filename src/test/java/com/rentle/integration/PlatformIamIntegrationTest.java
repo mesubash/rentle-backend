@@ -301,7 +301,7 @@ class PlatformIamIntegrationTest {
     }
 
     private String token(User user) {
-        return jwtTokenService.createAccessToken(user.getId(), user.getRole().name(), user.getStatus().name());
+        return jwtTokenService.createAccessToken(user.getId(), user.getStatus().name());
     }
 
     private String bearer(String token) {

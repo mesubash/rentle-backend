@@ -41,10 +41,6 @@ public class User extends AuditableEntity {
     private String profilePhotoUrl;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
-    private UserRole role = UserRole.USER;
-
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 25)
     private UserStatus status = UserStatus.PENDING_VERIFICATION;
 

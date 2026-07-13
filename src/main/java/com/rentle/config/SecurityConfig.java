@@ -30,8 +30,8 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
-import java.util.List;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.UUID;
 
 @Configuration
@@ -87,11 +87,7 @@ public class SecurityConfig {
     public JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            String role = jwt.getClaimAsString("role");
-            List<GrantedAuthority> authorities = new ArrayList<>();
-            if (role != null) {
-                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
-            }
+            Collection<GrantedAuthority> authorities = new ArrayList<>();
             if (rentleProperties.iam().enabled()) {
                 UUID userId = UUID.fromString(jwt.getSubject());
                 permissionResolverService.permissionKeysFor(userId).stream()

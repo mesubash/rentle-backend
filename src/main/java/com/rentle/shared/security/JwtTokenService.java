@@ -22,12 +22,11 @@ public class JwtTokenService {
         this.props = props;
     }
 
-    public String createAccessToken(UUID userId, String role, String status) {
+    public String createAccessToken(UUID userId, String status) {
         Instant now = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .subject(userId.toString())
                 .id(UUID.randomUUID().toString())
-                .claim("role", role)
                 .claim("status", status)
                 .issuedAt(now)
                 .expiresAt(now.plusMillis(props.accessTokenExpiryMs()))

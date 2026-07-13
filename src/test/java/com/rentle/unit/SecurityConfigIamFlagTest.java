@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 class SecurityConfigIamFlagTest {
 
     @Test
-    void disabledIamFlagKeepsLegacyRoleAuthorityOnly() {
+    void disabledIamFlagIgnoresLegacyRoleClaimAndAddsNoPermissionAuthorities() {
         PermissionResolverService resolver = mock(PermissionResolverService.class);
         RentleProperties properties = mock(RentleProperties.class);
         when(properties.iam()).thenReturn(new RentleProperties.Iam(false, false, null));
@@ -38,7 +38,7 @@ class SecurityConfigIamFlagTest {
                 .jwtAuthenticationConverter()
                 .convert(jwt);
 
-        assertEquals(Set.of("ROLE_ADMIN", "FACTOR_BEARER"), authentication.getAuthorities().stream()
+        assertEquals(Set.of("FACTOR_BEARER"), authentication.getAuthorities().stream()
                 .map(authority -> authority.getAuthority())
                 .collect(java.util.stream.Collectors.toSet()));
         verify(resolver, never()).permissionKeysFor(userId);

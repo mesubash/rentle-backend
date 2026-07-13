@@ -195,7 +195,7 @@ public class AuthService {
 
     private AuthResponse issueTokens(User user) {
         String accessToken = jwtTokenService.createAccessToken(
-                user.getId(), user.getRole().name(), user.getStatus().name());
+                user.getId(), user.getStatus().name());
 
         String refreshToken = UUID.randomUUID().toString();
         redis.opsForValue().set(
