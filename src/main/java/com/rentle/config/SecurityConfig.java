@@ -3,6 +3,7 @@ package com.rentle.config;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import com.rentle.domain.platform.service.PermissionResolverService;
 import com.rentle.shared.api.JsonErrorWriter;
 import com.rentle.shared.security.JwtKeyProvider;
 import com.rentle.shared.security.TokenRevocationService;
@@ -15,6 +16,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -29,11 +31,22 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.UUID;
 
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
+
+    private final PermissionResolverService permissionResolverService;
+    private final RentleProperties rentleProperties;
+
+    public SecurityConfig(PermissionResolverService permissionResolverService,
+                          RentleProperties rentleProperties) {
+        this.permissionResolverService = permissionResolverService;
+        this.rentleProperties = rentleProperties;
+    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
@@ -75,9 +88,17 @@ public class SecurityConfig {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
             String role = jwt.getClaimAsString("role");
-            return role == null
-                    ? List.of()
-                    : List.of(new SimpleGrantedAuthority("ROLE_" + role));
+            List<GrantedAuthority> authorities = new ArrayList<>();
+            if (role != null) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+            }
+            if (rentleProperties.iam().enabled()) {
+                UUID userId = UUID.fromString(jwt.getSubject());
+                permissionResolverService.permissionKeysFor(userId).stream()
+                        .map(SimpleGrantedAuthority::new)
+                        .forEach(authorities::add);
+            }
+            return authorities;
         });
         return converter;
     }
