@@ -59,8 +59,8 @@ rentle:
   # Dev delivery for OTP codes and email verification links (no SMS/email provider yet).
   discord-webhook: ${RENTLE_DISCORD_WEBHOOK:}
   iam:
-    enabled: false
-    sync-catalog: false
+    enabled: true
+    sync-catalog: true
     bootstrap-super-admin-email: ${RENTLE_IAM_SUPER_ADMIN_EMAIL:}
 
 # Backend-driven Google OAuth (Authorization Code flow — no client config in the

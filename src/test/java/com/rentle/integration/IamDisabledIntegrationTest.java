@@ -21,7 +21,10 @@ import java.util.stream.Collectors;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "rentle.iam.enabled=false",
+        "rentle.iam.sync-catalog=false"
+})
 @Import(TestcontainersConfig.class)
 class IamDisabledIntegrationTest {
 
