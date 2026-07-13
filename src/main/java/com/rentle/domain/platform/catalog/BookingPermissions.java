@@ -10,7 +10,7 @@ public class BookingPermissions implements PermissionCatalog {
     @Override
     public List<PermissionDefinition> permissions() {
         return List.of(
-                new PermissionDefinition(PermissionKeys.BOOKING_BOOKING_READ_ALL, "booking", "booking", "read_all", "View all bookings")
+                new PermissionDefinition(PermissionKeys.BOOKING_BOOKING_READ, "booking", "booking", "read", "View all bookings")
         );
     }
 }

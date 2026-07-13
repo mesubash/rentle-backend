@@ -18,11 +18,11 @@ public final class PermissionKeys {
     public static final String KYC_SUBMISSION_APPROVE = "kyc.submission.approve";
     public static final String KYC_SUBMISSION_REJECT = "kyc.submission.reject";
 
-    public static final String LISTING_LISTING_READ_ALL = "listing.listing.read_all";
+    public static final String LISTING_LISTING_READ = "listing.listing.read";
     public static final String LISTING_LISTING_MODERATE = "listing.listing.moderate";
     public static final String LISTING_CATEGORY_MANAGE = "listing.category.manage";
 
-    public static final String BOOKING_BOOKING_READ_ALL = "booking.booking.read_all";
+    public static final String BOOKING_BOOKING_READ = "booking.booking.read";
 
     private PermissionKeys() {}
 }
