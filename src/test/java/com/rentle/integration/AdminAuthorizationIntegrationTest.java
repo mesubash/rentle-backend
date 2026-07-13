@@ -2,6 +2,13 @@ package com.rentle.integration;
 
 import com.rentle.config.TestcontainersConfig;
 import com.rentle.domain.platform.repository.AssignmentRepository;
+import com.rentle.domain.listing.model.Category;
+import com.rentle.domain.listing.model.Listing;
+import com.rentle.domain.listing.model.ListingStatus;
+import com.rentle.domain.listing.model.ListingType;
+import com.rentle.domain.listing.model.PriceUnit;
+import com.rentle.domain.listing.repository.CategoryRepository;
+import com.rentle.domain.listing.repository.ListingRepository;
 import com.rentle.domain.platform.repository.RoleRepository;
 import com.rentle.domain.platform.repository.ScopeRepository;
 import com.rentle.domain.platform.service.IamCatalogSynchronizer;
@@ -21,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -41,6 +49,8 @@ class AdminAuthorizationIntegrationTest {
     @Autowired AssignmentRepository assignmentRepository;
     @Autowired PermissionResolverService permissionResolverService;
     @Autowired JwtTokenService jwtTokenService;
+    @Autowired CategoryRepository categoryRepository;
+    @Autowired ListingRepository listingRepository;
 
     private IamTestSupport iam;
 
@@ -128,6 +138,44 @@ class AdminAuthorizationIntegrationTest {
                 get("/api/v1/admin/bookings").header("Authorization", authorization))) {
             expectForbidden(request);
         }
+    }
+
+    @Test
+    void moderatorCanDeactivateAndRemoveAnotherUsersListingButOwnerCannot() throws Exception {
+        User moderator = iam.createStaff("moderator", "ADMIN");
+        User owner = iam.createUser("listing-owner");
+        Listing listing = listing(owner);
+
+        mockMvc.perform(put("/api/v1/admin/listings/{id}/deactivate", listing.getId())
+                        .header("Authorization", iam.authorization(moderator)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("INACTIVE"));
+
+        mockMvc.perform(put("/api/v1/admin/listings/{id}/remove", listing.getId())
+                        .header("Authorization", iam.authorization(moderator)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.status").value("REMOVED"));
+
+        expectForbidden(put("/api/v1/admin/listings/{id}/deactivate", listing.getId())
+                .header("Authorization", iam.authorization(owner)));
+        expectForbidden(put("/api/v1/admin/listings/{id}/remove", listing.getId())
+                .header("Authorization", iam.authorization(owner)));
+    }
+
+    private Listing listing(User owner) {
+        Category category = categoryRepository.findBySlug("cameras-tech").orElseThrow();
+        Listing listing = new Listing();
+        listing.setOwner(owner);
+        listing.setCategory(category);
+        listing.setType(ListingType.PRODUCT);
+        listing.setStatus(ListingStatus.ACTIVE);
+        listing.setTitle("Moderation test listing");
+        listing.setDescription("A listing owned by another user for moderation tests.");
+        listing.setPricePerUnit(new BigDecimal("1000.00"));
+        listing.setPriceUnit(PriceUnit.PER_DAY);
+        listing.setDistrict("Kathmandu");
+        listing.setDepositAmount(BigDecimal.ZERO);
+        return listingRepository.save(listing);
     }
 
     private void expectForbidden(RequestBuilder request) throws Exception {

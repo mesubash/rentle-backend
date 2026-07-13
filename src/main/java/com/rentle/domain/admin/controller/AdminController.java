@@ -122,6 +122,24 @@ public class AdminController {
         return ApiResponse.ok(adminService.listListings(pageable(page, size)));
     }
 
+    @PutMapping("/listings/{id}/deactivate")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.LISTING_LISTING_MODERATE + "')")
+    public ApiResponse<ListingSummaryResponse> deactivateListing(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) ReasonRequest request) {
+        return ApiResponse.ok(adminService.deactivateListing(
+                SecurityUtils.currentUserId(), id, request != null ? request.reason() : null));
+    }
+
+    @PutMapping("/listings/{id}/remove")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.LISTING_LISTING_MODERATE + "')")
+    public ApiResponse<ListingSummaryResponse> removeListing(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) ReasonRequest request) {
+        return ApiResponse.ok(adminService.removeListing(
+                SecurityUtils.currentUserId(), id, request != null ? request.reason() : null));
+    }
+
     private Pageable pageable(int page, int size) {
         return PageRequest.of(page, Math.min(size, 100), Sort.by(Sort.Direction.DESC, "createdAt"));
     }

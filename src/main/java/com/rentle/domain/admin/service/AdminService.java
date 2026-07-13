@@ -3,6 +3,8 @@ package com.rentle.domain.admin.service;
 import com.rentle.domain.booking.dto.BookingResponse;
 import com.rentle.domain.booking.repository.BookingRepository;
 import com.rentle.domain.listing.dto.ListingSummaryResponse;
+import com.rentle.domain.listing.model.Listing;
+import com.rentle.domain.listing.model.ListingStatus;
 import com.rentle.domain.listing.repository.ListingRepository;
 import com.rentle.domain.user.dto.UserProfileResponse;
 import com.rentle.domain.user.model.User;
@@ -15,10 +17,12 @@ import com.rentle.shared.security.TokenRevocationService;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class AdminService {
 
     private final UserRepository userRepository;
@@ -80,8 +84,34 @@ public class AdminService {
                 l -> ListingSummaryResponse.from(l, null));
     }
 
+    @Transactional
+    public ListingSummaryResponse deactivateListing(UUID moderatorId, UUID listingId, String reason) {
+        Listing listing = getListing(listingId);
+        listing.setStatus(ListingStatus.INACTIVE);
+        listing = listingRepository.save(listing);
+        log.info("Listing {} deactivated by {}. Reason: {}", listingId, moderatorId, reason);
+        return ListingSummaryResponse.from(listing, null);
+    }
+
+    @Transactional
+    public ListingSummaryResponse removeListing(UUID moderatorId, UUID listingId, String reason) {
+        Listing listing = getListing(listingId);
+        if (listing.getStatus() == ListingStatus.REMOVED) {
+            throw new RentleException("Listing is already removed");
+        }
+        listing.setStatus(ListingStatus.REMOVED);
+        listing = listingRepository.save(listing);
+        log.info("Listing {} removed by {}. Reason: {}", listingId, moderatorId, reason);
+        return ListingSummaryResponse.from(listing, null);
+    }
+
     private User getUser(UUID userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
+    private Listing getListing(UUID listingId) {
+        return listingRepository.findById(listingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Listing not found"));
     }
 }
