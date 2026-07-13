@@ -74,13 +74,18 @@ after completion.
   - [GET /users/{id}/reviews](#get-usersidreviews-1)
 - [9. Admin](#9-admin)
   - [GET /admin/users](#get-adminusers)
+  - [GET /admin/kyc](#get-adminkyc)
+  - [GET /admin/kyc/{userId}](#get-adminkycuserid)
   - [PUT /admin/users/{id}/verify](#put-adminusersidverify)
+  - [PUT /admin/users/{id}/reject-kyc](#put-adminusersidreject-kyc)
   - [PUT /admin/users/{id}/suspend](#put-adminusersidsuspend)
   - [PUT /admin/users/{id}/unsuspend](#put-adminusersidunsuspend)
   - [GET /admin/bookings](#get-adminbookings)
   - [GET /admin/listings](#get-adminlistings)
+  - [PUT /admin/listings/{id}/deactivate](#put-adminlistingsiddeactivate)
+  - [PUT /admin/listings/{id}/remove](#put-adminlistingsidremove)
 - [10. Object schemas](#10-object-schemas)
-- [11. Platform (IAM) — dormant](#11-platform-iam--dormant)
+- [11. Platform (IAM)](#11-platform-iam)
 
 ---
 
@@ -143,7 +148,8 @@ shape never changes.
 Auth is stateless JWT (RS256). Two tokens:
 
 - **Access token** — 15-minute TTL. Sent as `Authorization: Bearer <token>` on every
-  protected request. Carries `sub` (user id), `role`, `status`, `jti`.
+  protected request. Carries `sub` (user id), `status`, `jti`. Permission
+  authorities are resolved per request from the database with a Redis cache.
 - **Refresh token** — 7-day TTL, opaque, stored server-side in Redis. Exchanged at
   [`POST /auth/refresh`](#post-authrefresh) for a new pair. **Single-use**: each
   refresh rotates (invalidates) the old refresh token.
@@ -155,7 +161,8 @@ so suspension takes effect on the next token issuance.
 Public endpoints (no token): `POST /auth/*`, `GET /categories*`, `GET /listings`,
 `GET /listings/{id}`, `GET /listings/{id}/availability`, `GET /listings/{id}/reviews`,
 `GET /users/{id}`, `GET /users/{id}/listings`, `GET /users/{id}/reviews`. Everything
-else requires a valid access token. `/admin/**` additionally requires role `ADMIN`.
+else requires a valid access token. `/admin/**` methods additionally require the
+permission key documented for each endpoint.
 
 > **Note on deployment:** the reference frontend calls the API through a same-origin
 > backend-for-frontend proxy and keeps tokens in HTTP-only cookies; the browser never
@@ -183,7 +190,6 @@ Redis-backed, fixed-window. Exceeding a limit returns `429`.
 
 | Enum | Values |
 |------|--------|
-| `UserRole` | `USER`, `ADMIN` |
 | `UserStatus` | `PENDING_VERIFICATION`, `VERIFIED`, `SUSPENDED` |
 | `ListingType` | `PRODUCT`, `SERVICE` |
 | `ListingStatus` | `DRAFT`, `ACTIVE`, `INACTIVE`, `REMOVED` |
@@ -675,44 +681,74 @@ Reviews about a user, newest first, paginated. (Same as
 
 ## 9. Admin
 
-All `/admin/**` endpoints require role `ADMIN`; others receive `403`.
+All `/admin/**` endpoints require authentication plus the permission key listed
+below. Assignments are resolved from IAM roles at the ROOT scope; missing permission
+returns `403` in the standard envelope.
 
 ### GET /admin/users
 
 All users, paginated (newest first, size ≤ 100). Optional `status` filter
 (`UserStatus`).
-**Auth:** ADMIN · **`200 OK`** → page of [`UserProfile`](#userprofile).
+**Permission:** `identity.user.read` · **`200 OK`** → page of [`UserProfile`](#userprofile).
 
 ### GET /admin/users/{id}/citizenship
 
 Stream a user's citizenship image for verification review.
-**Auth:** ADMIN · **`200 OK`** → the raw image (`image/*`). **Errors:** `404` none on file.
+**Permission:** `kyc.submission.read` · **`200 OK`** → the raw image (`image/*`). **Errors:** `404` none on file.
+
+### GET /admin/kyc
+
+Pending KYC submissions, paginated oldest first.
+**Permission:** `kyc.submission.read` · **`200 OK`** → page of KYC review rows.
+
+### GET /admin/kyc/{userId}
+
+Full KYC submission details for one user.
+**Permission:** `kyc.submission.read` · **`200 OK`** → KYC details. **Errors:** `404`.
 
 ### PUT /admin/users/{id}/verify
 
 Approve a pending citizenship submission → user becomes `VERIFIED`. Requires an
 uploaded card and a verified phone.
-**Auth:** ADMIN · **`200 OK`** → [`UserProfile`](#userprofile). **Errors:** `400` no card / phone unverified.
+**Permission:** `kyc.submission.approve` · **`200 OK`** → [`UserProfile`](#userprofile). **Errors:** `400` no card / phone unverified.
+
+### PUT /admin/users/{id}/reject-kyc
+
+Reject a submitted KYC review with an optional reason.
+**Permission:** `kyc.submission.reject` · **Body:** `{ "reason"?: string }` · **`200 OK`** → KYC details.
 
 ### PUT /admin/users/{id}/suspend
 
 Suspend a user → `SUSPENDED`.
-**Auth:** ADMIN · **`200 OK`** → [`UserProfile`](#userprofile).
+**Permission:** `identity.user.suspend` · **`200 OK`** → [`UserProfile`](#userprofile).
 
 ### PUT /admin/users/{id}/unsuspend
 
 Lift suspension → `VERIFIED` if the card was verified, else `PENDING_VERIFICATION`.
-**Auth:** ADMIN · **`200 OK`** → [`UserProfile`](#userprofile). **Errors:** `400` not suspended.
+**Permission:** `identity.user.suspend` · **`200 OK`** → [`UserProfile`](#userprofile). **Errors:** `400` not suspended.
 
 ### GET /admin/bookings
 
 All bookings, paginated (newest first).
-**Auth:** ADMIN · **`200 OK`** → page of [`Booking`](#booking).
+**Permission:** `booking.booking.read` · **`200 OK`** → page of [`Booking`](#booking).
 
 ### GET /admin/listings
 
 All listings, paginated (newest first).
-**Auth:** ADMIN · **`200 OK`** → page of [`ListingSummary`](#listingsummary).
+**Permission:** `listing.listing.read` · **`200 OK`** → page of [`ListingSummary`](#listingsummary).
+
+### PUT /admin/listings/{id}/deactivate
+
+Set any listing to `INACTIVE`, bypassing ownership. Optional body:
+`{ "reason": "..." }`.
+**Permission:** `listing.listing.moderate` · **`200 OK`** → [`ListingSummary`](#listingsummary).
+
+### PUT /admin/listings/{id}/remove
+
+Set any listing to `REMOVED`, bypassing ownership. Optional body:
+`{ "reason": "..." }`.
+**Permission:** `listing.listing.moderate` · **`200 OK`** → [`ListingSummary`](#listingsummary).
+**Errors:** `400` listing already removed · `404` listing not found.
 
 ---
 
@@ -731,7 +767,7 @@ Full private profile (own or admin view).
 
 ```json
 { "id": "uuid", "phoneNumber": "string|null", "email": "string", "fullName": "string",
-  "profilePhotoUrl": "string|null", "role": "USER|ADMIN",
+  "profilePhotoUrl": "string|null",
   "status": "PENDING_VERIFICATION|VERIFIED|SUSPENDED",
   "authProvider": "LOCAL|GOOGLE", "hasPassword": true,
   "phoneVerified": true, "emailVerified": true,
@@ -821,12 +857,14 @@ Card shape for lists and search.
 
 ---
 
-## 11. Platform (IAM) — dormant
+## 11. Platform (IAM)
 
-The Iteration 1 platform IAM machinery is present, but both
-`rentle.iam.enabled` and `rentle.iam.sync-catalog` default to `false`. No IAM
-catalog, role, scope, or assignment data is created under the default configuration,
-and all existing endpoint access rules remain unchanged.
+IAM is enabled by default. On every startup the idempotent catalog synchronizer
+registers the permission catalog, role bundles, and the ROOT scope. Set
+`RENTLE_IAM_SUPER_ADMIN_EMAIL` to the email of an existing account to grant its
+first live `SUPER_ADMIN` assignment; if the account does not exist yet, startup
+continues and the next boot retries. `rentle.iam.enabled=false` remains the
+permission-authority kill switch.
 
 The new endpoints use the standard `{data, error, timestamp}` envelope:
 
@@ -844,8 +882,8 @@ The new endpoints use the standard `{data, error, timestamp}` envelope:
 | `GET /platform/users/lookup?email=` | `identity.user.read` | Look up a user for assignment |
 | `GET /users/me/permissions` | authenticated | Return the caller's resolved permission keys |
 
-Because permission authorities are not added while IAM is disabled, all
-`/platform/**` endpoints are effectively inert under the default configuration.
+Permission changes and assignment grant/revoke operations explicitly invalidate the
+affected `perms:{userId}` Redis entry, so the next request observes the new access.
 
 ---
 
