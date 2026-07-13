@@ -24,4 +24,23 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
     List<Assignment> findByRoleIdAndRevokedAtIsNull(UUID roleId);
 
     boolean existsByRoleIdAndRevokedAtIsNull(UUID roleId);
+
+    boolean existsBySubjectIdAndRoleIdAndScopeIdAndRevokedAtIsNull(UUID subjectId, UUID roleId, UUID scopeId);
+
+    long countByRoleIdAndRevokedAtIsNull(UUID roleId);
+
+    long countBySubjectIdAndRoleIdAndRevokedAtIsNull(UUID subjectId, UUID roleId);
+
+    @Query("""
+            SELECT a FROM Assignment a
+            JOIN FETCH a.subject
+            JOIN FETCH a.role
+            JOIN FETCH a.scope
+            LEFT JOIN FETCH a.grantedBy
+            WHERE a.revokedAt IS NULL
+              AND (:userId IS NULL OR a.subject.id = :userId)
+              AND (:roleId IS NULL OR a.role.id = :roleId)
+            ORDER BY a.createdAt DESC
+            """)
+    List<Assignment> findLiveAssignments(@Param("userId") UUID userId, @Param("roleId") UUID roleId);
 }

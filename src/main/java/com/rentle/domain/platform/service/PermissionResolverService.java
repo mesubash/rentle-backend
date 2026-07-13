@@ -4,6 +4,7 @@ import com.rentle.domain.platform.model.Assignment;
 import com.rentle.domain.platform.repository.AssignmentRepository;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.Arrays;
@@ -47,6 +48,7 @@ public class PermissionResolverService {
         redisTemplate.delete(cacheKey(userId));
     }
 
+    @Transactional(readOnly = true)
     public void invalidateRole(UUID roleId) {
         List<Assignment> assignments = assignmentRepository.findByRoleIdAndRevokedAtIsNull(roleId);
         Set<UUID> userIds = new LinkedHashSet<>();

@@ -8,6 +8,7 @@ import com.rentle.domain.user.dto.UserProfileResponse;
 import com.rentle.domain.user.service.EmailVerificationService;
 import com.rentle.domain.user.service.OtpService;
 import com.rentle.domain.user.service.UserService;
+import com.rentle.domain.platform.service.PermissionResolverService;
 import com.rentle.shared.api.ApiResponse;
 import com.rentle.shared.security.SecurityUtils;
 import jakarta.validation.Valid;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -30,18 +32,29 @@ public class UserController {
     private final UserService userService;
     private final OtpService otpService;
     private final EmailVerificationService emailVerificationService;
+    private final PermissionResolverService permissionResolverService;
 
     public UserController(UserService userService,
                           OtpService otpService,
-                          EmailVerificationService emailVerificationService) {
+                          EmailVerificationService emailVerificationService,
+                          PermissionResolverService permissionResolverService) {
         this.userService = userService;
         this.otpService = otpService;
         this.emailVerificationService = emailVerificationService;
+        this.permissionResolverService = permissionResolverService;
     }
 
     @GetMapping("/me")
     public ApiResponse<UserProfileResponse> me() {
         return ApiResponse.ok(userService.getMe(SecurityUtils.currentUserId()));
+    }
+
+    @GetMapping("/me/permissions")
+    public ApiResponse<List<String>> permissions() {
+        List<String> keys = permissionResolverService.permissionKeysFor(SecurityUtils.currentUserId()).stream()
+                .sorted()
+                .toList();
+        return ApiResponse.ok(keys);
     }
 
     @PutMapping("/me")

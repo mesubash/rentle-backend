@@ -44,6 +44,7 @@ public class IamCatalogSynchronizer {
     }
 
     @EventListener(ApplicationReadyEvent.class)
+    @Transactional
     public void synchronizeAtStartup() {
         if (properties.iam().syncCatalog()) {
             synchronize();
@@ -97,7 +98,7 @@ public class IamCatalogSynchronizer {
     private void reconcileRolePermissions(Role role,
                                           RoleSeeds.RoleSeed definition,
                                           Map<String, Permission> permissionsByKey) {
-        rolePermissionRepository.deleteByIdRoleId(role.getId());
+        rolePermissionRepository.deleteByRoleId(role.getId());
         List<RolePermission> rolePermissions = definition.permissionKeys().stream()
                 .map(permissionsByKey::get)
                 .map(permission -> new RolePermission(role, permission))
