@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rentle.config.TestcontainersConfig;
 import com.rentle.domain.platform.catalog.PermissionKeys;
+import com.rentle.domain.platform.catalog.RoleSeeds;
 import com.rentle.domain.platform.model.Assignment;
 import com.rentle.domain.platform.model.Permission;
 import com.rentle.domain.platform.model.Role;
@@ -47,7 +48,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
         "rentle.iam.enabled=true",
-        "rentle.iam.sync-catalog=false"
+        "rentle.iam.sync-catalog=false",
+        "rentle.iam.bootstrap-super-admin-email=bootstrap-super-admin@test.com"
 })
 @AutoConfigureMockMvc
 @Import(TestcontainersConfig.class)
@@ -65,6 +67,19 @@ class PlatformIamIntegrationTest {
     @Autowired PermissionResolverService permissionResolverService;
     @Autowired IamCatalogSynchronizer iamCatalogSynchronizer;
     @Autowired JwtTokenService jwtTokenService;
+    @Autowired RoleSeeds roleSeeds;
+
+    @Test
+    void synchronizeBootstrapsConfiguredSuperAdminIdempotently() {
+        User bootstrapUser = userWithEmail("bootstrap-super-admin@test.com", "Bootstrap Super Admin");
+
+        iamCatalogSynchronizer.synchronize();
+        Set<String> expected = roleSeeds.roles().get("SUPER_ADMIN").permissionKeys();
+        assertEquals(expected, permissionResolverService.permissionKeysFor(bootstrapUser.getId()));
+
+        iamCatalogSynchronizer.synchronize();
+        assertEquals(1, assignmentRepository.findBySubjectIdAndRevokedAtIsNull(bootstrapUser.getId()).size());
+    }
 
     @Test
     void synchronizeIsIdempotentAndMakesRootAvailableForAssignments() throws Exception {
@@ -229,9 +244,13 @@ class PlatformIamIntegrationTest {
     }
 
     private User user(String prefix) {
+        return userWithEmail(prefix + "-" + suffix() + "@test.com", prefix);
+    }
+
+    private User userWithEmail(String email, String fullName) {
         User user = new User();
-        user.setEmail(prefix + "-" + suffix() + "@test.com");
-        user.setFullName(prefix);
+        user.setEmail(email);
+        user.setFullName(fullName);
         user.setStatus(UserStatus.VERIFIED);
         user.setEmailVerified(true);
         user.setPhoneVerified(true);

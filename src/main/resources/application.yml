@@ -61,6 +61,7 @@ rentle:
   iam:
     enabled: false
     sync-catalog: false
+    bootstrap-super-admin-email: ${RENTLE_IAM_SUPER_ADMIN_EMAIL:}
 
 # Backend-driven Google OAuth (Authorization Code flow — no client config in the
 # frontend). Set all three to enable /auth/google/login.

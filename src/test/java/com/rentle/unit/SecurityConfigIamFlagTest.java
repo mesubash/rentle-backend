@@ -23,7 +23,7 @@ class SecurityConfigIamFlagTest {
     void disabledIamFlagKeepsLegacyRoleAuthorityOnly() {
         PermissionResolverService resolver = mock(PermissionResolverService.class);
         RentleProperties properties = mock(RentleProperties.class);
-        when(properties.iam()).thenReturn(new RentleProperties.Iam(false, false));
+        when(properties.iam()).thenReturn(new RentleProperties.Iam(false, false, null));
         SecurityConfig securityConfig = new SecurityConfig(resolver, properties);
         UUID userId = UUID.randomUUID();
         Jwt jwt = Jwt.withTokenValue("token")

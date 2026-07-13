@@ -17,5 +17,5 @@ public record RentleProperties(
         String discordWebhook,  // dev delivery channel for OTPs and email links (no SMS/email provider yet)
         Iam iam
 ) {
-    public record Iam(boolean enabled, boolean syncCatalog) {}
+    public record Iam(boolean enabled, boolean syncCatalog, String bootstrapSuperAdminEmail) {}
 }

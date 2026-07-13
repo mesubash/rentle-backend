@@ -5,14 +5,19 @@ import com.rentle.domain.platform.catalog.PermissionCatalog;
 import com.rentle.domain.platform.catalog.PermissionDefinition;
 import com.rentle.domain.platform.catalog.RoleSeeds;
 import com.rentle.domain.platform.model.Permission;
+import com.rentle.domain.platform.model.Assignment;
 import com.rentle.domain.platform.model.Role;
 import com.rentle.domain.platform.model.RolePermission;
 import com.rentle.domain.platform.model.Scope;
 import com.rentle.domain.platform.model.ScopeType;
 import com.rentle.domain.platform.repository.PermissionRepository;
+import com.rentle.domain.platform.repository.AssignmentRepository;
 import com.rentle.domain.platform.repository.RolePermissionRepository;
 import com.rentle.domain.platform.repository.RoleRepository;
 import com.rentle.domain.platform.repository.ScopeRepository;
+import com.rentle.domain.user.model.User;
+import com.rentle.domain.user.repository.UserRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -23,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
 public class IamCatalogSynchronizer {
 
     private final List<PermissionCatalog> catalogs;
@@ -31,6 +37,9 @@ public class IamCatalogSynchronizer {
     private final RoleRepository roleRepository;
     private final RolePermissionRepository rolePermissionRepository;
     private final ScopeRepository scopeRepository;
+    private final AssignmentRepository assignmentRepository;
+    private final UserRepository userRepository;
+    private final PermissionResolverService permissionResolverService;
     private final RentleProperties properties;
 
     public IamCatalogSynchronizer(List<PermissionCatalog> catalogs,
@@ -39,6 +48,9 @@ public class IamCatalogSynchronizer {
                                   RoleRepository roleRepository,
                                   RolePermissionRepository rolePermissionRepository,
                                   ScopeRepository scopeRepository,
+                                  AssignmentRepository assignmentRepository,
+                                  UserRepository userRepository,
+                                  PermissionResolverService permissionResolverService,
                                   RentleProperties properties) {
         this.catalogs = catalogs;
         this.roleSeeds = roleSeeds;
@@ -46,6 +58,9 @@ public class IamCatalogSynchronizer {
         this.roleRepository = roleRepository;
         this.rolePermissionRepository = rolePermissionRepository;
         this.scopeRepository = scopeRepository;
+        this.assignmentRepository = assignmentRepository;
+        this.userRepository = userRepository;
+        this.permissionResolverService = permissionResolverService;
         this.properties = properties;
     }
 
@@ -59,7 +74,7 @@ public class IamCatalogSynchronizer {
 
     @Transactional
     public void synchronize() {
-        ensureRootScope();
+        Scope rootScope = ensureRootScope();
         Map<String, Permission> permissionsByKey = synchronizePermissions();
 
         roleSeeds.roles().forEach((name, definition) -> {
@@ -78,6 +93,7 @@ public class IamCatalogSynchronizer {
                 reconcileRolePermissions(role, definition, permissionsByKey);
             }
         });
+        bootstrapSuperAdmin(rootScope);
     }
 
     private Scope ensureRootScope() {
@@ -87,6 +103,37 @@ public class IamCatalogSynchronizer {
             root.setName("Rentle");
             return scopeRepository.save(root);
         });
+    }
+
+    private void bootstrapSuperAdmin(Scope rootScope) {
+        String email = properties.iam().bootstrapSuperAdminEmail();
+        if (email == null || email.isBlank()) {
+            return;
+        }
+
+        User user = userRepository.findByEmailIgnoreCase(email.trim()).orElse(null);
+        if (user == null) {
+            log.warn("IAM bootstrap super-admin user not found for email {}", email.trim());
+            return;
+        }
+
+        Role superAdmin = roleRepository.findByName("SUPER_ADMIN").orElse(null);
+        if (superAdmin == null) {
+            log.warn("IAM bootstrap skipped because SUPER_ADMIN role is missing");
+            return;
+        }
+        if (assignmentRepository.existsBySubjectIdAndRoleIdAndScopeIdAndRevokedAtIsNull(
+                user.getId(), superAdmin.getId(), rootScope.getId())) {
+            return;
+        }
+
+        Assignment assignment = new Assignment();
+        assignment.setSubject(user);
+        assignment.setRole(superAdmin);
+        assignment.setScope(rootScope);
+        assignment.setGrantedBy(null);
+        assignmentRepository.save(assignment);
+        permissionResolverService.invalidate(user.getId());
     }
 
     private Map<String, Permission> synchronizePermissions() {
