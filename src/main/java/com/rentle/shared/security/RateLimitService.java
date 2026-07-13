@@ -35,4 +35,9 @@ public class RateLimitService {
                 String.valueOf(window.toMillis()));
         return count == null || count <= limit;
     }
+
+    /** Clears a counter — e.g. a successful login must not consume brute-force quota. */
+    public void reset(String key) {
+        redis.delete("rl:" + key);
+    }
 }

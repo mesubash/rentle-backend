@@ -127,6 +127,10 @@ public class AuthService {
         user.setLastLoginAt(Instant.now());
         userRepository.save(user);
 
+        // Successful auth must not eat into the brute-force window — otherwise
+        // ordinary re-logins (dev testing, multiple devices) trip the limit.
+        rateLimitService.reset("login:" + req.identifier().toLowerCase());
+
         return issueTokens(user);
     }
 
