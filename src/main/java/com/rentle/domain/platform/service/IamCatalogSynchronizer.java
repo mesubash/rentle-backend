@@ -26,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -161,11 +163,20 @@ public class IamCatalogSynchronizer {
     private void reconcileRolePermissions(Role role,
                                           RoleSeeds.RoleSeed definition,
                                           Map<String, Permission> permissionsByKey) {
-        rolePermissionRepository.deleteByRoleId(role.getId());
-        List<RolePermission> rolePermissions = definition.permissionKeys().stream()
+        List<RolePermission> existing = rolePermissionRepository.findByRoleIdWithPermission(role.getId());
+        Set<String> existingKeys = existing.stream()
+                .map(RolePermission::getPermission)
+                .map(Permission::getKey)
+                .collect(Collectors.toSet());
+
+        rolePermissionRepository.deleteAll(existing.stream()
+                .filter(rolePermission -> !definition.permissionKeys().contains(
+                        rolePermission.getPermission().getKey()))
+                .toList());
+        rolePermissionRepository.saveAll(definition.permissionKeys().stream()
+                .filter(key -> !existingKeys.contains(key))
                 .map(permissionsByKey::get)
                 .map(permission -> new RolePermission(role, permission))
-                .toList();
-        rolePermissionRepository.saveAll(rolePermissions);
+                .toList());
     }
 }

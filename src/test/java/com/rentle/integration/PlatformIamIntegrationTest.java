@@ -57,7 +57,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PlatformIamIntegrationTest {
 
     @Autowired MockMvc mockMvc;
-    @Autowired ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     @Autowired UserRepository userRepository;
     @Autowired PermissionRepository permissionRepository;
     @Autowired RoleRepository roleRepository;
@@ -112,6 +112,7 @@ class PlatformIamIntegrationTest {
                 PermissionKeys.PLATFORM_ROLE_MANAGE
         ));
         assign(admin, accessRole, rootScope(), admin);
+        permission(PermissionKeys.IDENTITY_USER_READ);
         String token = token(admin);
 
         JsonNode created = responseJson(mockMvc.perform(post("/api/v1/platform/roles")
