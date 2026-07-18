@@ -51,6 +51,7 @@ public class ListingService {
     private final UserRepository userRepository;
     private final RateLimitService rateLimitService;
     private final com.rentle.domain.template.service.FieldTemplateService templateService;
+    private final com.rentle.domain.verification.service.ProviderVerificationService providerVerification;
 
     public ListingService(ListingRepository listingRepository,
                           CategoryRepository categoryRepository,
@@ -59,7 +60,8 @@ public class ListingService {
                           ListingImageRepository listingImageRepository,
                           UserRepository userRepository,
                           RateLimitService rateLimitService,
-                          com.rentle.domain.template.service.FieldTemplateService templateService) {
+                          com.rentle.domain.template.service.FieldTemplateService templateService,
+                          com.rentle.domain.verification.service.ProviderVerificationService providerVerification) {
         this.listingRepository = listingRepository;
         this.categoryRepository = categoryRepository;
         this.productDetailRepository = productDetailRepository;
@@ -68,6 +70,7 @@ public class ListingService {
         this.userRepository = userRepository;
         this.rateLimitService = rateLimitService;
         this.templateService = templateService;
+        this.providerVerification = providerVerification;
     }
 
     @Transactional
@@ -94,6 +97,14 @@ public class ListingService {
         }
         if (req.type() == ListingType.SERVICE && req.service() == null) {
             throw new RentleException("Service details are required for service listings");
+        }
+
+        // Provider-verification gate (docs/07 Phase A): a SERVICE listing in a category that
+        // requires credentials needs an approved provider verification for that category.
+        if (req.type() == ListingType.SERVICE
+                && !providerVerification.isVerifiedFor(ownerId, category.getId())) {
+            throw new RentleException(
+                    "This category requires provider verification. Submit your credentials for approval before listing.");
         }
 
         Listing listing = new Listing();
