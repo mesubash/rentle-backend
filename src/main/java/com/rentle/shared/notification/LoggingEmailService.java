@@ -1,10 +1,12 @@
 package com.rentle.shared.notification;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 @Slf4j
 @Service
+@ConditionalOnProperty(name = "rentle.email", havingValue = "logging", matchIfMissing = true)
 public class LoggingEmailService implements EmailService {
 
     private final DiscordNotifier discord;

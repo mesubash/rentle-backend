@@ -1,7 +1,6 @@
 # Production profile: no dev fallbacks. Every value comes from the environment, so a missing
-# secret fails the boot loudly instead of silently starting with a dev default (P0-6).
-# Activate with SPRING_PROFILES_ACTIVE=prod. CI/CD wiring and container images are intentionally
-# out of scope here — this profile just makes a prod boot safe.
+# secret fails the boot loudly instead of silently starting with a dev default.
+# Activate with SPRING_PROFILES_ACTIVE=prod (the Dockerfile sets it).
 spring:
   datasource:
     url: ${DB_URL}
@@ -12,12 +11,26 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
 
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+
 rentle:
   # No ${VAR:default} anywhere — an unset required var fails fast.
   storage: ${RENTLE_STORAGE}            # 'cloudinary' in prod (local disk is not durable)
   sms: ${RENTLE_SMS}                    # 'sparrow' in prod
+  email: ${RENTLE_EMAIL}                # 'smtp' in prod
+  mail-from: ${RENTLE_MAIL_FROM}
   app-url: ${RENTLE_APP_URL}
   api-base-url: ${RENTLE_API_BASE_URL}
+
+# Google sign-in (required in prod; set the OAuth client from Google Cloud Console).
+google:
+  client-id: ${GOOGLE_CLIENT_ID}
+  client-secret: ${GOOGLE_CLIENT_SECRET}
+  redirect-uri: ${GOOGLE_REDIRECT_URI}
 
 # JWT keys are required — a blank key generating an ephemeral keypair (dev behavior) would log
 # every user out on each restart and cannot scale past one instance.

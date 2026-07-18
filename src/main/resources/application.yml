@@ -32,6 +32,16 @@ spring:
       max-file-size: 10MB
       max-request-size: 25MB
 
+  # SMTP is only used when rentle.email=smtp. Host/credentials are env-driven; blank in dev.
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+
 # KYC submits ~17 form fields + 2 files as multipart parts; raise Tomcat's default
 # part/parameter limits so the whole form is accepted.
 server:
@@ -44,6 +54,9 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus   # Prometheus scrape at /actuator/prometheus
+  health:
+    mail:
+      enabled: ${MAIL_HEALTH:false}   # the mail starter pings SMTP on startup; off unless a real host is set
   metrics:
     tags:
       application: rentle-backend
@@ -56,6 +69,8 @@ rentle:
   storage: ${RENTLE_STORAGE:local}
   local-upload-dir: ${RENTLE_UPLOAD_DIR:uploads}
   sms: ${RENTLE_SMS:logging}
+  email: ${RENTLE_EMAIL:logging}          # logging | smtp
+  mail-from: ${RENTLE_MAIL_FROM:no-reply@rentle.app}
   private-upload-dir: ${RENTLE_PRIVATE_UPLOAD_DIR:private-uploads}
   app-url: ${RENTLE_APP_URL:http://localhost:3000}
   api-base-url: ${RENTLE_API_BASE_URL:http://localhost:8080}
