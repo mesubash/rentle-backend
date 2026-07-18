@@ -1,6 +1,11 @@
 # Category Rollout Platform — Design & Plan
 
-**Status:** proposal for review. Extends `07_provider_verification_plan.md` — same template
+> **Note (2026-07):** This design is now **built**. References to `07_provider_verification_plan.md`
+> below are historical — that plan has been realized as the field-template engine described here and
+> is documented in [SYSTEM_DESIGN.md](./SYSTEM_DESIGN.md) and [FEATURES.md](./FEATURES.md). Kept for
+> design rationale.
+
+**Status:** implemented (design rationale retained). Extended the earlier provider-verification plan — same template
 machinery, wider mandate. Nothing here is built yet.
 
 **The goal:** the marketplace grows **one category at a time, on the admin's schedule, with
