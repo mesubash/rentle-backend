@@ -67,6 +67,7 @@ public class BookingService {
     private final com.rentle.domain.template.service.FieldTemplateService templateService;
     private final com.rentle.domain.pricing.service.PricingPolicyService pricingPolicyService;
     private final com.rentle.domain.business.repository.WorkerRepository workerRepository;
+    private final com.rentle.domain.organization.service.OrganizationService organizationService;
     private final ApplicationEventPublisher eventPublisher;
 
     public BookingService(BookingRepository bookingRepository,
@@ -84,6 +85,7 @@ public class BookingService {
                           com.rentle.domain.template.service.FieldTemplateService templateService,
                           com.rentle.domain.pricing.service.PricingPolicyService pricingPolicyService,
                           com.rentle.domain.business.repository.WorkerRepository workerRepository,
+                          com.rentle.domain.organization.service.OrganizationService organizationService,
                           ApplicationEventPublisher eventPublisher) {
         this.bookingRepository = bookingRepository;
         this.listingRepository = listingRepository;
@@ -100,6 +102,7 @@ public class BookingService {
         this.templateService = templateService;
         this.pricingPolicyService = pricingPolicyService;
         this.workerRepository = workerRepository;
+        this.organizationService = organizationService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -144,6 +147,7 @@ public class BookingService {
 
         Booking booking = new Booking();
         booking.setListing(listing);
+        booking.setProviderOrgId(listing.getOrgId());   // org-owned listing → org is the provider
         booking.setRenter(renter);
         booking.setStartDate(req.startDate());
         booking.setEndDate(req.endDate());
@@ -189,14 +193,19 @@ public class BookingService {
         return BookingResponse.from(bookingRepository.save(booking));
     }
 
-    /** Business owner assigns which worker will attend this booking (docs/07 Phase B). */
+    /** An org member assigns which worker will attend this booking (docs/07 Phase B). Workers
+     *  belong to the provider org, so only org listings can have an assigned worker. */
     public BookingResponse assignWorker(UUID ownerId, UUID bookingId, UUID workerId) {
         Booking booking = getBookingForOwner(bookingId, ownerId);
         if (workerId == null) {
             booking.setAssignedWorkerId(null);
             booking.setAssignedWorkerName(null);
         } else {
-            var worker = workerRepository.findByIdAndBusinessId(workerId, ownerId)
+            UUID orgId = booking.getListing().getOrgId();
+            if (orgId == null) {
+                throw new RentleException("Only organization listings can assign a worker");
+            }
+            var worker = workerRepository.findByIdAndOrgId(workerId, orgId)
                     .orElseThrow(() -> new ResourceNotFoundException("Worker not found"));
             booking.setAssignedWorkerId(worker.getId());
             booking.setAssignedWorkerName(worker.getName());   // snapshot so the client sees who attends
@@ -480,7 +489,7 @@ public class BookingService {
 
     private Booking getBookingForOwner(UUID bookingId, UUID ownerId) {
         Booking booking = getBooking(bookingId);
-        if (!booking.getListing().getOwner().getId().equals(ownerId)) {
+        if (!isProviderSide(booking, ownerId)) {
             throw new UnauthorizedException("Only the listing owner can perform this action");
         }
         return booking;
@@ -488,11 +497,28 @@ public class BookingService {
 
     private Booking getBookingForParticipant(UUID bookingId, UUID actorId) {
         Booking booking = getBooking(bookingId);
-        boolean isRenter = booking.getRenter().getId().equals(actorId);
-        boolean isOwner = booking.getListing().getOwner().getId().equals(actorId);
-        if (!isRenter && !isOwner) {
+        if (!booking.getRenter().getId().equals(actorId) && !isProviderSide(booking, actorId)) {
             throw new UnauthorizedException("You are not a participant of this booking");
         }
         return booking;
+    }
+
+    /** The provider side is the listing owner, or — for org listings — any member allowed to
+     *  manage the org's bookings. Treats "acting as the org" the same as owning the listing. */
+    private boolean isProviderSide(Booking booking, UUID userId) {
+        if (booking.getListing().getOwner().getId().equals(userId)) return true;
+        UUID orgId = booking.getListing().getOrgId();
+        return orgId != null && organizationService.hasOrgPermission(
+                userId, orgId, com.rentle.domain.platform.catalog.PermissionKeys.ORGANIZATION_BOOKING_MANAGE);
+    }
+
+    /** Incoming bookings for an organization (provider side), for its members' dashboard. */
+    @Transactional(readOnly = true)
+    public PageResponse<BookingResponse> orgBookings(UUID userId, UUID orgId, Pageable pageable) {
+        if (!organizationService.hasOrgPermission(userId, orgId,
+                com.rentle.domain.platform.catalog.PermissionKeys.ORGANIZATION_BOOKING_MANAGE)) {
+            throw new UnauthorizedException("You are not a member of this organization");
+        }
+        return PageResponse.from(bookingRepository.findByProviderOrgId(orgId, pageable), BookingResponse::from);
     }
 }

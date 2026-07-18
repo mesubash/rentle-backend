@@ -53,10 +53,14 @@ public class BookingController {
 
     @GetMapping("/me/as-owner")
     public ApiResponse<PageResponse<BookingResponse>> asOwner(
+            @RequestParam(required = false) UUID orgId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, Math.min(size, 50));
-        return ApiResponse.ok(bookingService.myBookingsAsOwner(SecurityUtils.currentUserId(), pageable));
+        UUID userId = SecurityUtils.currentUserId();
+        return ApiResponse.ok(orgId != null
+                ? bookingService.orgBookings(userId, orgId, pageable)
+                : bookingService.myBookingsAsOwner(userId, pageable));
     }
 
     @GetMapping("/{id}")

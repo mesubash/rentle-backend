@@ -28,6 +28,8 @@ public interface ListingRepository extends JpaRepository<Listing, UUID> {
 
     Page<Listing> findByOwnerIdAndStatus(UUID ownerId, ListingStatus status, Pageable pageable);
 
+    Page<Listing> findByOrgIdAndStatusNot(UUID orgId, ListingStatus status, Pageable pageable);
+
     /**
      * Search over ACTIVE listings: PostgreSQL FTS for keyword, plain filters
      * for the rest. All params passed as text and cast to keep JDBC type

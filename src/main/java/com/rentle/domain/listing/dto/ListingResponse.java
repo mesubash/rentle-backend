@@ -12,6 +12,7 @@ import java.util.UUID;
 public record ListingResponse(
         UUID id,
         PublicProfileResponse owner,
+        ListingProviderDto provider,
         UUID categoryId,
         String categoryName,
         String type,
@@ -36,10 +37,12 @@ public record ListingResponse(
     public static ListingResponse from(Listing l,
                                        List<ListingImage> images,
                                        ProductDetailDto product,
-                                       ServiceDetailDto service) {
+                                       ServiceDetailDto service,
+                                       ListingProviderDto provider) {
         return new ListingResponse(
                 l.getId(),
                 PublicProfileResponse.from(l.getOwner()),
+                provider,
                 l.getCategory().getId(),
                 l.getCategory().getName(),
                 l.getType().name(),

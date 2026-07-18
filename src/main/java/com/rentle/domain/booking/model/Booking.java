@@ -84,7 +84,11 @@ public class Booking extends AuditableEntity {
     @Column(name = "cancellation_schedule", columnDefinition = "jsonb")
     private java.util.List<com.rentle.domain.pricing.model.CancellationTier> cancellationSchedule;
 
-    // For BUSINESS listings: which worker will attend (docs/07 Phase B). Name snapshotted.
+    /** Set when the booked listing is org-owned; the org is the provider (fulfils this booking). */
+    @Column(name = "provider_org_id")
+    private UUID providerOrgId;
+
+    // For org listings: which worker will attend (docs/07 Phase B). Name snapshotted.
     @Column(name = "assigned_worker_id")
     private UUID assignedWorkerId;
 

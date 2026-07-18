@@ -27,6 +27,10 @@ public class Listing extends AuditableEntity {
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
+    /** Set when the listing is owned by an organization; owner stays the acting human (audit). */
+    @Column(name = "org_id")
+    private java.util.UUID orgId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;

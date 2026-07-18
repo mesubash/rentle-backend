@@ -31,5 +31,12 @@ public final class PermissionKeys {
     public static final String PLATFORM_SETTINGS_MANAGE = "platform.settings.manage";
     public static final String BOOKING_FEE_MANAGE = "booking.fee.manage";
 
+    // Organization (org-scoped) permissions. Granted through org-scoped assignments, never at ROOT.
+    public static final String ORGANIZATION_ORG_MANAGE = "organization.org.manage";
+    public static final String ORGANIZATION_MEMBER_MANAGE = "organization.member.manage";
+    public static final String ORGANIZATION_WORKER_MANAGE = "organization.worker.manage";
+    public static final String ORGANIZATION_LISTING_MANAGE = "organization.listing.manage";
+    public static final String ORGANIZATION_BOOKING_MANAGE = "organization.booking.manage";
+
     private PermissionKeys() {}
 }

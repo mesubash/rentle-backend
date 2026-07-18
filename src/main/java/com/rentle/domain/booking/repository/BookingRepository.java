@@ -48,6 +48,10 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
     @Query("SELECT b FROM Booking b WHERE b.listing.owner.id = :ownerId ORDER BY b.createdAt DESC")
     Page<Booking> findByOwner(@Param("ownerId") UUID ownerId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"listing", "listing.owner", "renter"})
+    @Query("SELECT b FROM Booking b WHERE b.providerOrgId = :orgId ORDER BY b.createdAt DESC")
+    Page<Booking> findByProviderOrgId(@Param("orgId") UUID orgId, Pageable pageable);
+
     List<Booking> findByListingIdAndStatusNotInAndEndDateGreaterThanEqual(
             UUID listingId, Collection<BookingStatus> excludedStatuses, LocalDate from);
 }

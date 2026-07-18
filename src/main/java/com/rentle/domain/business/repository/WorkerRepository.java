@@ -12,4 +12,10 @@ public interface WorkerRepository extends JpaRepository<Worker, UUID> {
     List<Worker> findByBusinessIdOrderByCreatedAtAsc(UUID businessId);
 
     Optional<Worker> findByIdAndBusinessId(UUID id, UUID businessId);
+
+    List<Worker> findByOrgIdAndActiveTrueOrderByCreatedAtAsc(UUID orgId);
+
+    List<Worker> findByOrgIdOrderByCreatedAtAsc(UUID orgId);
+
+    Optional<Worker> findByIdAndOrgId(UUID id, UUID orgId);
 }
