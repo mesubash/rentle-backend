@@ -4,6 +4,10 @@ import com.rentle.domain.business.dto.WorkerRequest;
 import com.rentle.domain.business.dto.WorkerResponse;
 import com.rentle.domain.business.model.Worker;
 import com.rentle.domain.business.repository.WorkerRepository;
+import com.rentle.domain.listing.model.ListingStatus;
+import com.rentle.domain.listing.repository.ListingRepository;
+import com.rentle.domain.organization.dto.AdminOrgDetail;
+import com.rentle.domain.organization.dto.AdminOrgRow;
 import com.rentle.domain.organization.dto.CreateOrgRequest;
 import com.rentle.domain.organization.dto.InviteRequest;
 import com.rentle.domain.organization.dto.InviteResponse;
@@ -28,9 +32,12 @@ import com.rentle.domain.platform.repository.ScopeRepository;
 import com.rentle.domain.platform.service.PermissionResolverService;
 import com.rentle.domain.user.model.User;
 import com.rentle.domain.user.repository.UserRepository;
+import com.rentle.shared.api.PageResponse;
 import com.rentle.shared.exception.RentleException;
 import com.rentle.shared.exception.ResourceNotFoundException;
 import com.rentle.shared.exception.UnauthorizedException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +54,7 @@ public class OrganizationService {
     private final OrganizationRepository orgRepository;
     private final OrganizationInviteRepository inviteRepository;
     private final WorkerRepository workerRepository;
+    private final ListingRepository listingRepository;
     private final ScopeRepository scopeRepository;
     private final RoleRepository roleRepository;
     private final AssignmentRepository assignmentRepository;
@@ -56,6 +64,7 @@ public class OrganizationService {
     public OrganizationService(OrganizationRepository orgRepository,
                                OrganizationInviteRepository inviteRepository,
                                WorkerRepository workerRepository,
+                               ListingRepository listingRepository,
                                ScopeRepository scopeRepository,
                                RoleRepository roleRepository,
                                AssignmentRepository assignmentRepository,
@@ -64,11 +73,40 @@ public class OrganizationService {
         this.orgRepository = orgRepository;
         this.inviteRepository = inviteRepository;
         this.workerRepository = workerRepository;
+        this.listingRepository = listingRepository;
         this.scopeRepository = scopeRepository;
         this.roleRepository = roleRepository;
         this.assignmentRepository = assignmentRepository;
         this.permissionResolver = permissionResolver;
         this.userRepository = userRepository;
+    }
+
+    // ---- admin console (platform oversight of all organizations) ------------
+
+    @Transactional(readOnly = true)
+    public PageResponse<AdminOrgRow> adminList(String search, Pageable pageable) {
+        Page<Organization> page = (search == null || search.isBlank())
+                ? orgRepository.findAllByOrderByCreatedAtDesc(pageable)
+                : orgRepository.findByNameContainingIgnoreCaseOrderByCreatedAtDesc(search.trim(), pageable);
+        return PageResponse.from(page, org -> new AdminOrgRow(
+                org.getId(), org.getName(), org.getSlug(), org.getLogoUrl(),
+                assignmentRepository.countByScopeIdAndRevokedAtIsNull(org.getScopeId()),
+                listingRepository.countByOrgIdAndStatusNot(org.getId(), ListingStatus.REMOVED),
+                org.getCreatedAt()));
+    }
+
+    @Transactional(readOnly = true)
+    public AdminOrgDetail adminGet(UUID orgId) {
+        Organization org = requireOrg(orgId);
+        List<MemberResponse> members = assignmentRepository.findMembers(org.getScopeId()).stream().map(a -> {
+            User u = a.getSubject();
+            Role r = a.getRole();
+            return new MemberResponse(a.getId(), u.getId(), u.getFullName(), u.getEmail(),
+                    r.getId(), r.getName(), r.getDisplayName());
+        }).toList();
+        return new AdminOrgDetail(org.getId(), org.getName(), org.getSlug(), org.getBio(), org.getLogoUrl(),
+                org.getCreatedBy(), org.getCreatedAt(),
+                listingRepository.countByOrgIdAndStatusNot(org.getId(), ListingStatus.REMOVED), members);
     }
 
     // ---- organizations ------------------------------------------------------

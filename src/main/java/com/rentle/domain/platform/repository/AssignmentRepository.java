@@ -55,6 +55,8 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
 
     long countByScopeIdAndRoleIdAndRevokedAtIsNull(UUID scopeId, UUID roleId);
 
+    long countByScopeIdAndRevokedAtIsNull(UUID scopeId);
+
     List<Assignment> findBySubjectIdAndRevokedAtIsNull(UUID subjectId);
 
     List<Assignment> findByRoleIdAndRevokedAtIsNull(UUID roleId);
@@ -74,6 +76,7 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
             JOIN FETCH a.scope
             LEFT JOIN FETCH a.grantedBy
             WHERE a.revokedAt IS NULL
+              AND a.scope.type = com.rentle.domain.platform.model.ScopeType.ROOT
               AND (:userId IS NULL OR a.subject.id = :userId)
               AND (:roleId IS NULL OR a.role.id = :roleId)
             ORDER BY a.createdAt DESC

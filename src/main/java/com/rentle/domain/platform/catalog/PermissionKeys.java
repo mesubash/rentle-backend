@@ -31,6 +31,9 @@ public final class PermissionKeys {
     public static final String PLATFORM_SETTINGS_MANAGE = "platform.settings.manage";
     public static final String BOOKING_FEE_MANAGE = "booking.fee.manage";
 
+    /** Platform oversight of all organizations (companies lookup in the admin console). */
+    public static final String PLATFORM_ORGANIZATION_READ = "platform.organization.read";
+
     // Organization (org-scoped) permissions. Granted through org-scoped assignments, never at ROOT.
     public static final String ORGANIZATION_ORG_MANAGE = "organization.org.manage";
     public static final String ORGANIZATION_MEMBER_MANAGE = "organization.member.manage";

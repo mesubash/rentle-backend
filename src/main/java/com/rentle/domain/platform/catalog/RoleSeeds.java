@@ -40,7 +40,8 @@ public class RoleSeeds {
                 PermissionKeys.TRUST_REPORT_READ,
                 PermissionKeys.TRUST_REPORT_RESOLVE,
                 PermissionKeys.PLATFORM_SETTINGS_MANAGE,
-                PermissionKeys.BOOKING_FEE_MANAGE
+                PermissionKeys.BOOKING_FEE_MANAGE,
+                PermissionKeys.PLATFORM_ORGANIZATION_READ
         );
 
         Map<String, RoleSeed> definitions = new LinkedHashMap<>();
@@ -58,7 +59,8 @@ public class RoleSeeds {
                 PermissionKeys.TRUST_REPORT_READ,
                 PermissionKeys.TRUST_REPORT_RESOLVE,
                 PermissionKeys.PLATFORM_SETTINGS_MANAGE,
-                PermissionKeys.BOOKING_FEE_MANAGE
+                PermissionKeys.BOOKING_FEE_MANAGE,
+                PermissionKeys.PLATFORM_ORGANIZATION_READ
         )));
         definitions.put("KYC_REVIEWER", new RoleSeed("KYC Reviewer", null, false, Set.of(
                 PermissionKeys.KYC_SUBMISSION_READ,
