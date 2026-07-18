@@ -50,6 +50,7 @@ public class ListingService {
     private final ListingImageRepository listingImageRepository;
     private final UserRepository userRepository;
     private final RateLimitService rateLimitService;
+    private final com.rentle.domain.template.service.FieldTemplateService templateService;
 
     public ListingService(ListingRepository listingRepository,
                           CategoryRepository categoryRepository,
@@ -57,7 +58,8 @@ public class ListingService {
                           ServiceDetailRepository serviceDetailRepository,
                           ListingImageRepository listingImageRepository,
                           UserRepository userRepository,
-                          RateLimitService rateLimitService) {
+                          RateLimitService rateLimitService,
+                          com.rentle.domain.template.service.FieldTemplateService templateService) {
         this.listingRepository = listingRepository;
         this.categoryRepository = categoryRepository;
         this.productDetailRepository = productDetailRepository;
@@ -65,6 +67,7 @@ public class ListingService {
         this.listingImageRepository = listingImageRepository;
         this.userRepository = userRepository;
         this.rateLimitService = rateLimitService;
+        this.templateService = templateService;
     }
 
     @Transactional
@@ -103,7 +106,14 @@ public class ListingService {
         listing.setPriceUnit(req.priceUnit());
         listing.setDistrict(req.district());
         listing.setLocationText(req.locationText());
+        listing.setRentalTerms(req.rentalTerms());
         listing.setDepositAmount(req.depositAmount() != null ? req.depositAmount() : BigDecimal.ZERO);
+        // Validate + store this category's LISTING template answers, if a template is defined.
+        java.util.Map<String, Object> attrs = req.attributes() != null ? req.attributes() : new java.util.HashMap<>();
+        var listingTpl = templateService.current(category.getId(), com.rentle.domain.template.model.TemplateScope.LISTING);
+        listingTpl.ifPresent(tpl -> templateService.validateAnswers(tpl.getFields(), attrs));
+        listing.setAttributes(attrs);
+        listing.setAttributesTemplateVersion(listingTpl.map(t -> t.getVersion()).orElse(null));
         listing = listingRepository.save(listing);
 
         ProductDetailDto productDto = null;
@@ -146,6 +156,7 @@ public class ListingService {
         if (req.priceUnit() != null) listing.setPriceUnit(req.priceUnit());
         if (req.district() != null) listing.setDistrict(req.district());
         if (req.locationText() != null) listing.setLocationText(req.locationText());
+        if (req.rentalTerms() != null) listing.setRentalTerms(req.rentalTerms());
         if (req.depositAmount() != null) listing.setDepositAmount(req.depositAmount());
         listing = listingRepository.save(listing);
 
@@ -199,6 +210,21 @@ public class ListingService {
     @Transactional(readOnly = true)
     public PageResponse<ListingSummaryResponse> myListings(UUID ownerId, Pageable pageable) {
         return toSummaryPage(listingRepository.findByOwnerIdAndStatusNot(ownerId, ListingStatus.REMOVED, pageable));
+    }
+
+    /** Active-listing summaries for a set of ids (used by favorites), newest first. */
+    @Transactional(readOnly = true)
+    public List<ListingSummaryResponse> summariesByIds(List<UUID> ids) {
+        if (ids.isEmpty()) return List.of();
+        List<Listing> listings = listingRepository.findAllById(ids).stream()
+                .filter(l -> l.getStatus() == ListingStatus.ACTIVE)
+                .sorted(java.util.Comparator.comparing(Listing::getCreatedAt).reversed())
+                .toList();
+        Map<UUID, String> covers = listingImageRepository.findByListingIdInOrderBySortOrderAsc(
+                        listings.stream().map(Listing::getId).toList()).stream()
+                .collect(Collectors.toMap(img -> img.getListing().getId(),
+                        com.rentle.domain.listing.model.ListingImage::getUrl, (a, b) -> a));
+        return listings.stream().map(l -> ListingSummaryResponse.from(l, covers.get(l.getId()))).toList();
     }
 
     PageResponse<ListingSummaryResponse> toSummaryPage(Page<Listing> page) {

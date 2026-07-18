@@ -40,6 +40,18 @@ public class User extends AuditableEntity {
     @Column(name = "profile_photo_url", length = 500)
     private String profilePhotoUrl;
 
+    // Owner's eSewa/Khalti handle, shown to a renter at the deposit step so they know
+    // where to send the deposit. Free text (owners use different wallets).
+    @Column(name = "payment_wallet", length = 100)
+    private String paymentWallet;
+
+    // Business/org accounts (docs/07 Phase B): a BUSINESS lists as a company and registers workers.
+    @Column(name = "account_type", nullable = false, length = 12)
+    private String accountType = "INDIVIDUAL";
+
+    @Column(name = "business_name", length = 120)
+    private String businessName;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 25)
     private UserStatus status = UserStatus.PENDING_VERIFICATION;

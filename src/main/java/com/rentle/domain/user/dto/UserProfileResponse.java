@@ -21,6 +21,9 @@ public record UserProfileResponse(
         boolean citizenshipVerified,
         String kycStatus,         // null | SUBMITTED | APPROVED | REJECTED
         BigDecimal trustScore,
+        String paymentWallet,
+        String accountType,
+        String businessName,
         Instant createdAt
 ) {
     public static UserProfileResponse from(User u) {
@@ -42,6 +45,9 @@ public record UserProfileResponse(
                 Boolean.TRUE.equals(u.getCitizenshipVerified()),
                 kycStatus,
                 u.getTrustScore(),
+                u.getPaymentWallet(),
+                u.getAccountType(),
+                u.getBusinessName(),
                 u.getCreatedAt()
         );
     }

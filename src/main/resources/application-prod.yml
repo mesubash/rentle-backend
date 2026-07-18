@@ -1,0 +1,38 @@
+# Production profile: no dev fallbacks. Every value comes from the environment, so a missing
+# secret fails the boot loudly instead of silently starting with a dev default (P0-6).
+# Activate with SPRING_PROFILES_ACTIVE=prod. CI/CD wiring and container images are intentionally
+# out of scope here — this profile just makes a prod boot safe.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+
+rentle:
+  # No ${VAR:default} anywhere — an unset required var fails fast.
+  storage: ${RENTLE_STORAGE}            # 'cloudinary' in prod (local disk is not durable)
+  sms: ${RENTLE_SMS}                    # 'sparrow' in prod
+  app-url: ${RENTLE_APP_URL}
+  api-base-url: ${RENTLE_API_BASE_URL}
+
+# JWT keys are required — a blank key generating an ephemeral keypair (dev behavior) would log
+# every user out on each restart and cannot scale past one instance.
+jwt:
+  private-key: ${JWT_PRIVATE_KEY}
+  public-key: ${JWT_PUBLIC_KEY}
+
+# Structured JSON logs for prod aggregation (Spring Boot native structured logging).
+logging:
+  structured:
+    format:
+      console: ecs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus   # metrics endpoints reachable only on the internal network/proxy

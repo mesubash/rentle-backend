@@ -77,6 +77,10 @@ public class AdminService {
         User user = getUser(userId);
         user.setStatus(UserStatus.SUSPENDED);
         user = userRepository.save(user);
+        // Take the owner's live listings off the marketplace so nobody can book from a
+        // suspended account (they can't log in to approve or coordinate). Left INACTIVE
+        // for manual reactivation after unsuspend, not auto-restored.
+        listingRepository.deactivateActiveByOwner(userId);
         // Revoke any already-issued access tokens immediately (they otherwise
         // stay valid until their 15-minute expiry).
         tokenRevocation.revokeUser(userId);
@@ -95,6 +99,12 @@ public class AdminService {
         user = userRepository.save(user);
         tokenRevocation.clearUser(userId);
         return UserProfileResponse.from(user);
+    }
+
+    @Transactional(readOnly = true)
+    public BookingResponse getBooking(UUID bookingId) {
+        return BookingResponse.from(bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking not found")));
     }
 
     @Transactional(readOnly = true)

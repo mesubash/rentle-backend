@@ -81,6 +81,11 @@ public class ReviewService {
     }
 
     @Transactional(readOnly = true)
+    /** Has this user already reviewed this booking? Drives the review form's done-state. */
+    public boolean hasReviewed(UUID bookingId, UUID authorId) {
+        return reviewRepository.existsByBookingIdAndAuthorId(bookingId, authorId);
+    }
+
     public PageResponse<ReviewResponse> forListing(UUID listingId, Pageable pageable) {
         return PageResponse.from(
                 reviewRepository.findByListingIdOrderByCreatedAtDesc(listingId, pageable),

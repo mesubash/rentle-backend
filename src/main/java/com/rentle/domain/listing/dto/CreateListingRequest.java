@@ -21,6 +21,8 @@ public record CreateListingRequest(
         @NotBlank @Size(max = 50) String district,
         @Size(max = 200) String locationText,
         @DecimalMin("0.0") BigDecimal depositAmount,
+        @Size(max = 2000) String rentalTerms,
+        java.util.Map<String, Object> attributes,
         @Valid ProductDetailDto product,
         @Valid ServiceDetailDto service
 ) {}

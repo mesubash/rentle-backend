@@ -13,5 +13,6 @@ public record CreateBookingRequest(
         @NotNull LocalDate endDate,
         LocalTime startTime,
         LocalTime endTime,
-        @Size(max = 500) String note
+        @Size(max = 500) String note,
+        java.util.Map<String, Object> attributes
 ) {}

@@ -1,5 +1,6 @@
 package com.rentle.domain.messaging.repository;
 
+import com.rentle.domain.messaging.dto.ThreadSummary;
 import com.rentle.domain.messaging.model.Message;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -9,11 +10,24 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     Page<Message> findByBookingIdOrderByCreatedAtAsc(UUID bookingId, Pageable pageable);
+
+    /** One row per booking the user has messages in: latest activity + their unread count. */
+    @Query("""
+        SELECT new com.rentle.domain.messaging.dto.ThreadSummary(
+            m.booking.id,
+            MAX(m.createdAt),
+            SUM(CASE WHEN m.isRead = false AND m.sender.id <> :userId THEN 1L ELSE 0L END))
+        FROM Message m
+        WHERE m.booking.renter.id = :userId OR m.booking.listing.owner.id = :userId
+        GROUP BY m.booking.id
+    """)
+    List<ThreadSummary> threadSummaries(@Param("userId") UUID userId);
 
     long countByBookingId(UUID bookingId);
 

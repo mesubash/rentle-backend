@@ -43,10 +43,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus   # Prometheus scrape at /actuator/prometheus
+  metrics:
+    tags:
+      application: rentle-backend
 
 rentle:
-  platform-fee-percent: 7
+  platform-fee-percent: 0   # free launch (docs/13); admin raises it via platform settings when monetization turns on
   review-window-days: 30
   otp-expiry-minutes: 10
   max-listing-images: 5

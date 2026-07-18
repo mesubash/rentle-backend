@@ -24,10 +24,16 @@ import java.util.UUID;
 @Service
 public class MessageService {
 
-    /** Thread opens on approval; REQUESTED/REJECTED/CANCELLED bookings can't message. */
+    /**
+     * Messaging opens at REQUESTED so an owner can ask clarifying questions (fit, distance,
+     * scope) before approving — and a renter can ask before committing — instead of having
+     * to approve just to talk. It stays open through CANCELLED so the two parties can still
+     * coordinate a deposit return after a post-deposit cancellation. Only REJECTED (the
+     * owner declined outright) has no channel.
+     */
     private static final Set<BookingStatus> MESSAGEABLE_STATUSES = Set.of(
-            BookingStatus.APPROVED, BookingStatus.DEPOSIT_PENDING,
-            BookingStatus.ACTIVE, BookingStatus.COMPLETED);
+            BookingStatus.REQUESTED, BookingStatus.APPROVED, BookingStatus.DEPOSIT_PENDING,
+            BookingStatus.ACTIVE, BookingStatus.COMPLETED, BookingStatus.CANCELLED);
 
     private final MessageRepository messageRepository;
     private final BookingRepository bookingRepository;
@@ -86,6 +92,10 @@ public class MessageService {
     }
 
     @Transactional(readOnly = true)
+    public java.util.List<com.rentle.domain.messaging.dto.ThreadSummary> threadSummaries(UUID userId) {
+        return messageRepository.threadSummaries(userId);
+    }
+
     public long unreadCount(UUID userId) {
         return messageRepository.countUnreadForUser(userId);
     }

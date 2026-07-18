@@ -1,6 +1,7 @@
 package com.rentle.domain.booking.listener;
 
 import com.rentle.shared.event.BookingApprovedEvent;
+import com.rentle.shared.event.BookingCancelledEvent;
 import com.rentle.shared.event.BookingCompletedEvent;
 import com.rentle.shared.event.BookingCreatedEvent;
 import com.rentle.shared.event.BookingDepositConfirmedEvent;
@@ -45,6 +46,15 @@ public class BookingNotificationListener {
     public void onDepositConfirmed(BookingDepositConfirmedEvent event) {
         smsService.send(event.renterPhone(),
                 "Deposit confirmed for '%s'. Your booking is now active.".formatted(event.listingTitle()));
+    }
+
+    @Async
+    @TransactionalEventListener
+    public void onBookingCancelled(BookingCancelledEvent event) {
+        // Notify the counterparty — whoever did not cancel.
+        String recipient = event.cancelledByOwner() ? event.renterPhone() : event.ownerPhone();
+        smsService.send(recipient,
+                "A booking for '%s' was cancelled. Open Rentle for details.".formatted(event.listingTitle()));
     }
 
     @Async

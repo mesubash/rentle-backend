@@ -2,7 +2,11 @@ package com.rentle.domain.admin.controller;
 
 import com.rentle.domain.admin.service.AdminService;
 import com.rentle.domain.booking.dto.BookingResponse;
+import com.rentle.domain.listing.dto.AdminCategoryRow;
+import com.rentle.domain.listing.dto.CategoryStatusRequest;
 import com.rentle.domain.listing.dto.ListingSummaryResponse;
+import com.rentle.domain.listing.service.CategoryService;
+import com.rentle.domain.platform.settings.SettingValueRequest;
 import com.rentle.domain.platform.catalog.PermissionKeys;
 import com.rentle.domain.user.dto.KycAdminRow;
 import com.rentle.domain.user.dto.KycResponse;
@@ -39,10 +43,18 @@ public class AdminController {
 
     private final AdminService adminService;
     private final KycService kycService;
+    private final CategoryService categoryService;
+    private final com.rentle.domain.platform.settings.PlatformSettingsService platformSettings;
+    private final com.rentle.domain.booking.service.BookingService bookingService;
 
-    public AdminController(AdminService adminService, KycService kycService) {
+    public AdminController(AdminService adminService, KycService kycService, CategoryService categoryService,
+                          com.rentle.domain.platform.settings.PlatformSettingsService platformSettings,
+                          com.rentle.domain.booking.service.BookingService bookingService) {
         this.adminService = adminService;
         this.kycService = kycService;
+        this.categoryService = categoryService;
+        this.platformSettings = platformSettings;
+        this.bookingService = bookingService;
     }
 
     @GetMapping("/users")
@@ -123,6 +135,12 @@ public class AdminController {
         return ApiResponse.ok(adminService.listBookings(pageable(page, size)));
     }
 
+    @GetMapping("/bookings/{id}")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.BOOKING_BOOKING_READ + "')")
+    public ApiResponse<BookingResponse> booking(@PathVariable UUID id) {
+        return ApiResponse.ok(adminService.getBooking(id));
+    }
+
     @GetMapping("/listings")
     @PreAuthorize("hasAuthority('" + PermissionKeys.LISTING_LISTING_READ + "')")
     public ApiResponse<PageResponse<ListingSummaryResponse>> listings(
@@ -147,6 +165,49 @@ public class AdminController {
             @Valid @RequestBody(required = false) ReasonRequest request) {
         return ApiResponse.ok(adminService.removeListing(
                 SecurityUtils.currentUserId(), id, request != null ? request.reason() : null));
+    }
+
+    @GetMapping("/categories")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.LISTING_CATEGORY_MANAGE + "')")
+    public ApiResponse<java.util.List<AdminCategoryRow>> categories() {
+        return ApiResponse.ok(categoryService.listForAdmin());
+    }
+
+    @GetMapping("/settings")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.PLATFORM_SETTINGS_MANAGE + "')")
+    public ApiResponse<java.util.Map<String, String>> settings() {
+        return ApiResponse.ok(platformSettings.all());
+    }
+
+    @PutMapping("/settings/{key}")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.PLATFORM_SETTINGS_MANAGE + "')")
+    public ApiResponse<java.util.Map<String, String>> updateSetting(
+            @PathVariable String key, @Valid @RequestBody SettingValueRequest request) {
+        platformSettings.set(key, request.value(), SecurityUtils.currentUserId());
+        return ApiResponse.ok(platformSettings.all());
+    }
+
+    @GetMapping("/fees")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.BOOKING_FEE_MANAGE + "')")
+    public ApiResponse<PageResponse<BookingResponse>> fees(
+            @RequestParam(defaultValue = "false") boolean invoiced,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(bookingService.listFees(invoiced, pageable(page, size)));
+    }
+
+    @PutMapping("/bookings/{id}/fee-invoiced")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.BOOKING_FEE_MANAGE + "')")
+    public ApiResponse<BookingResponse> markFeeInvoiced(@PathVariable UUID id) {
+        return ApiResponse.ok(bookingService.markFeeInvoiced(id));
+    }
+
+    @PutMapping("/categories/{id}/status")
+    @PreAuthorize("hasAuthority('" + PermissionKeys.LISTING_CATEGORY_MANAGE + "')")
+    public ApiResponse<AdminCategoryRow> setCategoryStatus(
+            @PathVariable UUID id,
+            @Valid @RequestBody CategoryStatusRequest request) {
+        return ApiResponse.ok(categoryService.setActive(id, request.active()));
     }
 
     private Pageable pageable(int page, int size) {

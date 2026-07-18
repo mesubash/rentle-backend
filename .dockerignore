@@ -1,0 +1,11 @@
+.gradle
+build
+.idea
+.vscode
+*.iml
+uploads
+private-uploads
+backups
+docs
+spring-iam
+.git

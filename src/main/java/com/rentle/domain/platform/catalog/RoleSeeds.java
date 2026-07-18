@@ -31,7 +31,11 @@ public class RoleSeeds {
                 PermissionKeys.LISTING_LISTING_READ,
                 PermissionKeys.LISTING_LISTING_MODERATE,
                 PermissionKeys.LISTING_CATEGORY_MANAGE,
-                PermissionKeys.BOOKING_BOOKING_READ
+                PermissionKeys.BOOKING_BOOKING_READ,
+                PermissionKeys.TRUST_REPORT_READ,
+                PermissionKeys.TRUST_REPORT_RESOLVE,
+                PermissionKeys.PLATFORM_SETTINGS_MANAGE,
+                PermissionKeys.BOOKING_FEE_MANAGE
         );
 
         Map<String, RoleSeed> definitions = new LinkedHashMap<>();
@@ -45,7 +49,11 @@ public class RoleSeeds {
                 PermissionKeys.LISTING_LISTING_READ,
                 PermissionKeys.LISTING_LISTING_MODERATE,
                 PermissionKeys.LISTING_CATEGORY_MANAGE,
-                PermissionKeys.BOOKING_BOOKING_READ
+                PermissionKeys.BOOKING_BOOKING_READ,
+                PermissionKeys.TRUST_REPORT_READ,
+                PermissionKeys.TRUST_REPORT_RESOLVE,
+                PermissionKeys.PLATFORM_SETTINGS_MANAGE,
+                PermissionKeys.BOOKING_FEE_MANAGE
         )));
         definitions.put("KYC_REVIEWER", new RoleSeed("KYC Reviewer", null, false, Set.of(
                 PermissionKeys.KYC_SUBMISSION_READ,
@@ -55,7 +63,8 @@ public class RoleSeeds {
         definitions.put("SUPPORT", new RoleSeed("Support", "Read-only support access", false, Set.of(
                 PermissionKeys.IDENTITY_USER_READ,
                 PermissionKeys.BOOKING_BOOKING_READ,
-                PermissionKeys.LISTING_LISTING_READ
+                PermissionKeys.LISTING_LISTING_READ,
+                PermissionKeys.TRUST_REPORT_READ
         )));
         definitions.put("USER", new RoleSeed("User", "Marketplace user", true, Set.of()));
         this.roles = Map.copyOf(definitions);
