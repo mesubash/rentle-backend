@@ -1,6 +1,8 @@
 package com.rentle.domain.verification.service;
 
 import com.rentle.domain.notification.service.NotificationService;
+import com.rentle.domain.organization.service.OrganizationService;
+import com.rentle.domain.platform.catalog.PermissionKeys;
 import com.rentle.domain.template.model.TemplateScope;
 import com.rentle.domain.template.service.FieldTemplateService;
 import com.rentle.domain.verification.dto.ProviderVerificationResponse;
@@ -10,6 +12,7 @@ import com.rentle.domain.verification.repository.ProviderVerificationRepository;
 import com.rentle.shared.api.PageResponse;
 import com.rentle.shared.exception.RentleException;
 import com.rentle.shared.exception.ResourceNotFoundException;
+import com.rentle.shared.exception.UnauthorizedException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,13 +32,16 @@ public class ProviderVerificationService {
     private final ProviderVerificationRepository repository;
     private final FieldTemplateService templateService;
     private final NotificationService notificationService;
+    private final OrganizationService organizationService;
 
     public ProviderVerificationService(ProviderVerificationRepository repository,
                                        FieldTemplateService templateService,
-                                       NotificationService notificationService) {
+                                       NotificationService notificationService,
+                                       OrganizationService organizationService) {
         this.repository = repository;
         this.templateService = templateService;
         this.notificationService = notificationService;
+        this.organizationService = organizationService;
     }
 
     /** Does this category gate publishing (i.e. has a verification template with any field)? */
@@ -52,6 +58,13 @@ public class ProviderVerificationService {
         return repository.existsByUserIdAndCategoryIdAndStatus(userId, categoryId, "APPROVED");
     }
 
+    /** True if the organization may publish in this category (org listings check the org's credentials). */
+    @Transactional(readOnly = true)
+    public boolean isVerifiedForOrg(UUID orgId, UUID categoryId) {
+        if (!categoryRequiresVerification(categoryId)) return true;
+        return repository.existsByOrgIdAndCategoryIdAndStatus(orgId, categoryId, "APPROVED");
+    }
+
     @Transactional
     public ProviderVerificationResponse submit(UUID userId, SubmitVerificationRequest req) {
         var template = templateService.current(req.categoryId(), TemplateScope.VERIFICATION)
@@ -59,13 +72,18 @@ public class ProviderVerificationService {
         var answers = req.fields() != null ? req.fields() : new java.util.HashMap<String, Object>();
         templateService.validateAnswers(template.getFields(), answers);
 
-        ProviderVerification v = repository.findByUserIdAndCategoryId(userId, req.categoryId())
-                .orElseGet(() -> {
-                    ProviderVerification n = new ProviderVerification();
-                    n.setUserId(userId);
-                    n.setCategoryId(req.categoryId());
-                    return n;
-                });
+        UUID orgId = req.orgId();
+        if (orgId != null && !organizationService.hasOrgPermission(userId, orgId, PermissionKeys.ORGANIZATION_LISTING_MANAGE)) {
+            throw new UnauthorizedException("You cannot submit verification for this organization");
+        }
+
+        ProviderVerification v = (orgId != null
+                ? repository.findByOrgIdAndCategoryId(orgId, req.categoryId())
+                : repository.findByUserIdAndCategoryId(userId, req.categoryId()))
+                .orElseGet(ProviderVerification::new);
+        v.setUserId(userId);
+        v.setOrgId(orgId);
+        v.setCategoryId(req.categoryId());
         v.setFields(answers);
         v.setTemplateVersion(template.getVersion());
         v.setStatus("SUBMITTED");         // resubmission re-enters the queue
@@ -76,7 +94,15 @@ public class ProviderVerificationService {
 
     @Transactional(readOnly = true)
     public List<ProviderVerificationResponse> mine(UUID userId) {
-        return repository.findByUserId(userId).stream().map(ProviderVerificationResponse::from).toList();
+        return repository.findByUserIdAndOrgIdIsNull(userId).stream().map(ProviderVerificationResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProviderVerificationResponse> forOrg(UUID userId, UUID orgId) {
+        if (!organizationService.hasOrgPermission(userId, orgId, PermissionKeys.ORGANIZATION_LISTING_MANAGE)) {
+            throw new UnauthorizedException("You are not a member of this organization");
+        }
+        return repository.findByOrgId(orgId).stream().map(ProviderVerificationResponse::from).toList();
     }
 
     @Transactional(readOnly = true)

@@ -40,10 +40,11 @@ public class ProviderVerificationController {
         return ApiResponse.ok(service.submit(SecurityUtils.currentUserId(), request));
     }
 
-    /** The provider's own submissions + statuses. */
+    /** The provider's own submissions, or an organization's when orgId is given. */
     @GetMapping("/users/me/provider-verifications")
-    public ApiResponse<List<ProviderVerificationResponse>> mine() {
-        return ApiResponse.ok(service.mine(SecurityUtils.currentUserId()));
+    public ApiResponse<List<ProviderVerificationResponse>> mine(@RequestParam(required = false) UUID orgId) {
+        UUID userId = SecurityUtils.currentUserId();
+        return ApiResponse.ok(orgId != null ? service.forOrg(userId, orgId) : service.mine(userId));
     }
 
     /** Admin review queue. */

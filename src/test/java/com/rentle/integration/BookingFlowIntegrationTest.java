@@ -281,7 +281,7 @@ class BookingFlowIntegrationTest {
         CreateListingRequest req = new CreateListingRequest(
                 "Nikon D850 body", "Well maintained DSLR body available for rent in Kathmandu.",
                 category.getId(), ListingType.PRODUCT, new BigDecimal("800.00"), PriceUnit.PER_DAY,
-                "Kathmandu", null, BigDecimal.ZERO, null, null,
+                "Kathmandu", null, BigDecimal.ZERO, null, null, null,
                 new ProductDetailDto(ItemCondition.GOOD, "Nikon", "D850", 1, 30), null);
 
         assertThrows(UnauthorizedException.class, () -> listingService.create(pending.getId(), req));

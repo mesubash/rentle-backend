@@ -13,7 +13,13 @@ public interface ProviderVerificationRepository extends JpaRepository<ProviderVe
 
     Optional<ProviderVerification> findByUserIdAndCategoryId(UUID userId, UUID categoryId);
 
-    List<ProviderVerification> findByUserId(UUID userId);
+    Optional<ProviderVerification> findByOrgIdAndCategoryId(UUID orgId, UUID categoryId);
+
+    List<ProviderVerification> findByUserIdAndOrgIdIsNull(UUID userId);
+
+    List<ProviderVerification> findByOrgId(UUID orgId);
+
+    boolean existsByOrgIdAndCategoryIdAndStatus(UUID orgId, UUID categoryId, String status);
 
     Page<ProviderVerification> findByStatusOrderByCreatedAtAsc(String status, Pageable pageable);
 

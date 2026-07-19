@@ -92,7 +92,12 @@ public class IamCatalogSynchronizer {
             }
 
             if (created || Boolean.TRUE.equals(role.getIsSystemRole())) {
+                // New roles and system roles are pinned exactly to their seed set.
                 reconcileRolePermissions(role, definition, permissionsByKey);
+            } else {
+                // Existing editable roles: additively grant any newly-seeded permissions so
+                // baseline access keeps up with new features, without clobbering admin edits.
+                addMissingRolePermissions(role, definition, permissionsByKey);
             }
         });
         bootstrapSuperAdmin(rootScope);
@@ -173,6 +178,21 @@ public class IamCatalogSynchronizer {
                 .filter(rolePermission -> !definition.permissionKeys().contains(
                         rolePermission.getPermission().getKey()))
                 .toList());
+        rolePermissionRepository.saveAll(definition.permissionKeys().stream()
+                .filter(key -> !existingKeys.contains(key))
+                .map(permissionsByKey::get)
+                .map(permission -> new RolePermission(role, permission))
+                .toList());
+    }
+
+    /** Grant any seed permissions the role is missing; never remove existing ones. */
+    private void addMissingRolePermissions(Role role,
+                                           RoleSeeds.RoleSeed definition,
+                                           Map<String, Permission> permissionsByKey) {
+        Set<String> existingKeys = rolePermissionRepository.findByRoleIdWithPermission(role.getId()).stream()
+                .map(RolePermission::getPermission)
+                .map(Permission::getKey)
+                .collect(Collectors.toSet());
         rolePermissionRepository.saveAll(definition.permissionKeys().stream()
                 .filter(key -> !existingKeys.contains(key))
                 .map(permissionsByKey::get)

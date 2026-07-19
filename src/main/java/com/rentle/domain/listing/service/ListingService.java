@@ -123,8 +123,10 @@ public class ListingService {
 
         // Provider-verification gate (docs/07 Phase A): a SERVICE listing in a category that
         // requires credentials needs an approved provider verification for that category.
-        if (req.type() == ListingType.SERVICE
-                && !providerVerification.isVerifiedFor(ownerId, category.getId())) {
+        boolean verified = org != null
+                ? providerVerification.isVerifiedForOrg(org.getId(), category.getId())
+                : providerVerification.isVerifiedFor(ownerId, category.getId());
+        if (req.type() == ListingType.SERVICE && !verified) {
             throw new RentleException(
                     "This category requires provider verification. Submit your credentials for approval before listing.");
         }

@@ -31,6 +31,10 @@ public class ProviderVerification {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
+    /** Set when this verification belongs to an organization (org listings check it instead of the user's). */
+    @Column(name = "org_id")
+    private UUID orgId;
+
     @Column(name = "category_id", nullable = false)
     private UUID categoryId;
 
