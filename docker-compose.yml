@@ -1,5 +1,5 @@
-# Local:       docker compose --env-file .env.local up -d postgres redis   (run app via ./gradlew bootRun)
-# Production:   docker compose --profile app up -d --build                  (auto-loads .env)
+# Run everything:  docker compose up -d --build          (uses .env)
+# Local override:  docker compose --env-file .env.local up -d --build
 
 services:
   postgres:
@@ -24,7 +24,6 @@ services:
     restart: unless-stopped
 
   app:
-    profiles: ["app"]
     build: .
     container_name: rentle-backend
     env_file: .env
