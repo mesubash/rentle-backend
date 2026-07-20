@@ -1,27 +1,40 @@
+# One compose for both local and production. Values come from the chosen env file.
+#
+# Local (Postgres + Redis only; run the app on the host with ./gradlew bootRun):
+#     docker compose up -d postgres redis
+#   (Compose auto-loads .env, giving dev_password and host ports 5433/6380.)
+#
+# Production (everything in containers, on the VPS):
+#     docker compose --env-file .env.production --profile app up -d --build
+#   The 'app' profile starts the backend; it reads .env.production, connects to
+#   postgres:5432 / redis:6379 over the internal network, and runs the prod profile
+#   (baked into the image). Put a TLS reverse proxy in front of app:8080.
+
 services:
   postgres:
     image: postgres:16-alpine
     container_name: rentle-postgres
     environment:
       POSTGRES_DB: rentle
-      POSTGRES_USER: rentle
-      POSTGRES_PASSWORD: dev_password
+      POSTGRES_USER: ${DB_USER:-rentle}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
     ports:
-      - "5433:5432"   # host 5433 — 5432 commonly taken by other local stacks
+      - "127.0.0.1:${DB_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U rentle -d rentle"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-rentle} -d rentle"]
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     container_name: rentle-redis
-    ports:
-      - "6380:6379"   # host 6380 — 6379 commonly taken by local redis
     command: redis-server --appendonly yes
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6380}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -29,7 +42,28 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
+
+  # Backend container — only started with the 'app' profile (i.e. in production).
+  # Locally the app runs on the host via bootRun, so this stays off by default.
+  app:
+    profiles: ["app"]
+    build: .
+    container_name: rentle-backend
+    env_file: .env.production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persists private files (KYC docs, deposit proofs). Public images go to Cloudinary.
+      - rentle_files:/var/lib/rentle
+    restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
+  rentle_files:
