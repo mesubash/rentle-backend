@@ -44,3 +44,5 @@ nohup.out
 AGENTS.md
 private-uploads/
 spring-iam/
+.env.*
+!.env.example
