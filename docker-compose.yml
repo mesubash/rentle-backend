@@ -1,5 +1,5 @@
-# Local:       docker compose up -d postgres redis        (run the app with ./gradlew bootRun)
-# Production:   docker compose --env-file .env.production --profile app up -d --build
+# Local:       docker compose --env-file .env.local up -d postgres redis   (run app via ./gradlew bootRun)
+# Production:   docker compose --profile app up -d --build                  (auto-loads .env)
 
 services:
   postgres:
@@ -27,7 +27,7 @@ services:
     profiles: ["app"]
     build: .
     container_name: rentle-backend
-    env_file: .env.production
+    env_file: .env
     depends_on:
       postgres: { condition: service_healthy }
     ports: ["8091:8080"]   # 8083 was taken by travel-buddy-app on the VPS
