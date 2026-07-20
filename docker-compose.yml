@@ -9,7 +9,7 @@ services:
       POSTGRES_DB: rentle
       POSTGRES_USER: ${DB_USER:-rentle}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-dev_password}
-    ports: ["${DB_HOST_PORT:-5433}:5432"]
+    ports: ["5433:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-rentle}"]
@@ -20,7 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: rentle-redis
-    ports: ["${REDIS_HOST_PORT:-6380}:6379"]
+    ports: ["6380:6379"]
     restart: unless-stopped
 
   app:
@@ -30,7 +30,7 @@ services:
     env_file: .env.production
     depends_on:
       postgres: { condition: service_healthy }
-    ports: ["${APP_PORT:-8083}:8080"]   # external 8083 → app 8080 (front with a TLS proxy)
+    ports: ["8083:8080"]
     volumes: ["privatefiles:/var/lib/rentle"]   # KYC docs + deposit proofs (not on Cloudinary)
     restart: unless-stopped
 
