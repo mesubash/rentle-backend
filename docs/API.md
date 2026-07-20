@@ -12,7 +12,10 @@ Base URL: `/api/v1`. Authentication is a Bearer JWT (the frontend BFF proxy stor
 - [Bookings](#bookings)
 - [Messaging, Reviews, Favorites & Notifications](#messaging-reviews-favorites-notifications)
 - [Reports, Workers & Pricing Policy](#reports-workers-pricing-policy)
+- [Organizations](#organizations)
+- [Provider Verification](#provider-verification)
 - [Admin Console](#admin-console)
+- [Admin Organizations](#admin-organizations)
 - [Platform IAM (Roles, Permissions, Assignments)](#platform-iam-roles-permissions-assignments)
 
 ## Authentication & Google OAuth
@@ -2351,6 +2354,427 @@ Response `data`:
 
 ---
 
+## Organizations
+
+Organizations: creation, membership, invites and the org worker registry. All endpoints are `authenticated`; write actions additionally require an **org-scoped** permission the caller must hold within the target org (checked in `OrganizationService`). `OrgResponse.myPermissions` returns the org-scoped permission keys the caller holds, so the UI can gate actions the same way the backend does.
+
+### POST /api/v1/orgs
+
+Create a new organization owned by the current user (returns `201 Created`). Auth: authenticated.
+
+**Request body** — `CreateOrgRequest`
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| name | string | Yes | `@NotBlank`, max 120 | Organization name |
+| bio | string | No | max 500 | Short description |
+| logoUrl | string | No | max 500 | Logo image URL |
+
+**Response (data)** — `OrgResponse`
+
+| Field | Type | Description |
+|---|---|---|
+| id | UUID | Organization id |
+| name | string | Organization name |
+| slug | string | URL-safe slug (generated) |
+| bio | string | Short description |
+| logoUrl | string | Logo image URL |
+| myPermissions | string[] | Org-scoped permission keys the caller holds here |
+
+Request example:
+
+```json
+{ "name": "Everest Gear Rentals", "bio": "Trekking equipment for the Himalayas", "logoUrl": "https://cdn.rentle.app/orgs/everest.png" }
+```
+
+Response example:
+
+```json
+{
+  "id": "3f1c2b90-1a2b-4c3d-9e5f-a1b2c3d4e5f6",
+  "name": "Everest Gear Rentals",
+  "slug": "everest-gear-rentals",
+  "bio": "Trekking equipment for the Himalayas",
+  "logoUrl": "https://cdn.rentle.app/orgs/everest.png",
+  "myPermissions": ["organization.org.manage", "organization.member.manage", "organization.worker.manage", "organization.listing.manage", "organization.booking.manage"]
+}
+```
+
+---
+
+### GET /api/v1/orgs/me
+
+Organizations the current user belongs to — powers the account switcher. Auth: authenticated.
+
+**Response (data)** — `OrgSummaryResponse[]`
+
+| Field | Type | Description |
+|---|---|---|
+| id | UUID | Organization id |
+| name | string | Organization name |
+| slug | string | URL-safe slug |
+| logoUrl | string | Logo image URL |
+
+Response example:
+
+```json
+[ { "id": "3f1c2b90-1a2b-4c3d-9e5f-a1b2c3d4e5f6", "name": "Everest Gear Rentals", "slug": "everest-gear-rentals", "logoUrl": "https://cdn.rentle.app/orgs/everest.png" } ]
+```
+
+---
+
+### POST /api/v1/orgs/invites/{token}/accept
+
+Accept an org invite by its token and join the organization. Auth: authenticated.
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| token | path | string | Yes | Invite token from the invite email/link |
+
+**Response (data)** — `OrgResponse` (the joined organization, with the caller's new `myPermissions`).
+
+---
+
+### GET /api/v1/orgs/{id}
+
+Get a single organization's detail. Auth: authenticated (must be a member).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+
+**Response (data)** — `OrgResponse`.
+
+---
+
+### PUT /api/v1/orgs/{id}
+
+Update an organization's profile. Auth: `organization.org.manage` (org-scoped).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+
+**Request body** — `UpdateOrgRequest`
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| name | string | Yes | `@NotBlank`, max 120 | Organization name |
+| bio | string | No | max 500 | Short description |
+| logoUrl | string | No | max 500 | Logo image URL |
+
+**Response (data)** — `OrgResponse`.
+
+---
+
+### GET /api/v1/orgs/{id}/assignable-roles
+
+List the org roles a member can be invited as (populates the invite role dropdown). Auth: authenticated.
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+
+**Response (data)** — `OrgRoleResponse[]`
+
+| Field | Type | Description |
+|---|---|---|
+| id | UUID | Role id |
+| name | string | Role key |
+| displayName | string | Human-readable role name |
+| description | string | Role description |
+
+---
+
+### GET /api/v1/orgs/{id}/members
+
+List an organization's members. Auth: authenticated (must be a member).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+
+**Response (data)** — `MemberResponse[]`
+
+| Field | Type | Description |
+|---|---|---|
+| assignmentId | UUID | Role-assignment id |
+| userId | UUID | Member user id |
+| fullName | string | Member full name |
+| email | string | Member email |
+| roleId | UUID | Assigned role id |
+| roleName | string | Role key |
+| roleDisplayName | string | Human-readable role name |
+
+---
+
+### DELETE /api/v1/orgs/{id}/members/{memberUserId}
+
+Remove a member from the organization. Auth: `organization.member.manage` (org-scoped).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+| memberUserId | path | UUID | Yes | User id of the member to remove |
+
+**Response (data)** — string `"Member removed"`.
+
+---
+
+### GET /api/v1/orgs/{id}/members/invites
+
+List the organization's pending invites. Auth: `organization.member.manage` (org-scoped).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+
+**Response (data)** — `InviteResponse[]`
+
+| Field | Type | Description |
+|---|---|---|
+| id | UUID | Invite id |
+| email | string | Invited email |
+| roleId | UUID | Role the invitee will be assigned |
+| roleDisplayName | string | Human-readable role name |
+| token | string | Invite token |
+| createdAt | Instant | Creation timestamp |
+
+---
+
+### POST /api/v1/orgs/{id}/members/invites
+
+Invite a user to the organization by email (returns `201 Created`). Auth: `organization.member.manage` (org-scoped).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+
+**Request body** — `InviteRequest`
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| email | string | Yes | `@NotBlank`, `@Email`, max 100 | Invitee email |
+| roleId | UUID | Yes | `@NotNull` | Role to assign on acceptance |
+
+**Response (data)** — `InviteResponse` (see above).
+
+Request example:
+
+```json
+{ "email": "worker@example.com", "roleId": "7c2d1e00-3a4b-5c6d-7e8f-9a0b1c2d3e4f" }
+```
+
+---
+
+### DELETE /api/v1/orgs/{id}/members/invites/{inviteId}
+
+Revoke a pending invite. Auth: `organization.member.manage` (org-scoped).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+| inviteId | path | UUID | Yes | Invite id to revoke |
+
+**Response (data)** — string `"Invite revoked"`.
+
+---
+
+### GET /api/v1/orgs/{id}/workers
+
+List the organization's worker registry. Auth: authenticated (must be a member).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+
+**Response (data)** — `WorkerResponse[]`
+
+| Field | Type | Description |
+|---|---|---|
+| id | UUID | Worker id |
+| name | string | Worker name |
+| phone | string | Worker phone |
+| role | string | Worker role/label |
+| active | boolean | Whether the worker is active |
+
+---
+
+### POST /api/v1/orgs/{id}/workers
+
+Add a worker to the org registry (returns `201 Created`). Auth: `organization.worker.manage` (org-scoped).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+
+**Request body** — `WorkerRequest`
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| name | string | Yes | `@NotBlank`, max 120 | Worker name |
+| phone | string | No | max 20 | Worker phone |
+| role | string | No | max 80 | Worker role/label |
+
+**Response (data)** — `WorkerResponse` (see above).
+
+---
+
+### PUT /api/v1/orgs/{id}/workers/{workerId}
+
+Update a worker in the org registry. Auth: `organization.worker.manage` (org-scoped).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+| workerId | path | UUID | Yes | Worker id |
+
+**Request body** — `WorkerRequest` (same fields as add).
+
+**Response (data)** — `WorkerResponse`.
+
+---
+
+### DELETE /api/v1/orgs/{id}/workers/{workerId}
+
+Remove a worker from the org registry. Auth: `organization.worker.manage` (org-scoped).
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+| workerId | path | UUID | Yes | Worker id |
+
+**Response (data)** — string `"Worker removed"`.
+
+---
+
+## Provider Verification
+
+Providers submit category credentials for review; admins work a queue and approve/reject. A submission may belong to a user or, when `orgId` is set, to an organization the caller is allowed to list for.
+
+### POST /api/v1/users/me/provider-verifications
+
+Provider submits (or resubmits) credentials for a category. Auth: authenticated.
+
+**Request body** — `SubmitVerificationRequest`
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| categoryId | UUID | Yes | `@NotNull` | Category being verified for |
+| orgId | UUID | No | — | When set, submit for this organization (caller must be a member allowed to list) |
+| fields | object (map) | No | — | Category-specific credential field values (key→value) |
+
+**Response (data)** — `ProviderVerificationResponse`
+
+| Field | Type | Description |
+|---|---|---|
+| id | UUID | Submission id |
+| userId | UUID | Submitting user id |
+| orgId | UUID | Owning organization id (null for personal submissions) |
+| categoryId | UUID | Category id |
+| status | string | Review status (e.g. `PENDING`, `APPROVED`, `REJECTED`) |
+| fields | object (map) | Submitted credential values |
+| rejectionReason | string | Reason when rejected (else null) |
+| createdAt | Instant | Submission timestamp |
+
+Request example:
+
+```json
+{ "categoryId": "8f3b2c10-1a2b-4c3d-9e5f-a1b2c3d4e5f6", "orgId": null, "fields": { "licenseNumber": "GD-4821", "issuedBy": "Nepal Tourism Board" } }
+```
+
+---
+
+### GET /api/v1/users/me/provider-verifications
+
+The provider's own submissions, or an organization's when `orgId` is given. Auth: authenticated.
+
+**Query params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| orgId | query | UUID | No | When set, return the organization's submissions instead of the caller's personal ones |
+
+**Response (data)** — `ProviderVerificationResponse[]` (see above).
+
+---
+
+### GET /api/v1/admin/provider-verifications
+
+Admin review queue. Auth: `kyc.submission.read`.
+
+**Query params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| status | query | string | No | Filter by status |
+| page | query | int | No | Zero-based page index (default 0) |
+| size | query | int | No | Page size (default 20, capped at 100) |
+
+**Response (data)** — `PageResponse<ProviderVerificationResponse>`: `content[]` of `ProviderVerificationResponse`, plus `page`, `size`, `totalElements`, `last`.
+
+---
+
+### PUT /api/v1/admin/provider-verifications/{id}/approve
+
+Approve a pending submission. Auth: `kyc.submission.approve`.
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Submission id |
+
+**Response (data)** — `ProviderVerificationResponse` (status transitions to approved).
+
+---
+
+### PUT /api/v1/admin/provider-verifications/{id}/reject
+
+Reject a pending submission with an optional reason. Auth: `kyc.submission.reject`.
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Submission id |
+
+**Request body** — `ReasonRequest` (optional; body may be omitted)
+
+| Field | Type | Required | Constraints | Description |
+|---|---|---|---|---|
+| reason | string | No | max 400 | Rejection reason surfaced to the provider |
+
+**Response (data)** — `ProviderVerificationResponse` (status transitions to rejected, `rejectionReason` set).
+
+---
+
 ## Admin Console
 
 All endpoints are prefixed with `/api/v1/admin` and require a Bearer JWT (attached by the BFF as an httpOnly cookie). Every endpoint is guarded by a specific permission. Responses use the standard envelope `{ "data": ..., "error": null, "timestamp": ... }`; the tables below describe the `data` contents. List endpoints wrap `data` in a `PageResponse` (`content[]`, `page`, `size`, `totalElements`, `last`).
@@ -2870,6 +3294,62 @@ Activate or deactivate a category. Auth: permission `listing.category.manage`.
 ```
 
 ---
+
+## Admin Organizations
+
+Platform oversight for the Admin Console: companies lookup and organization detail. Base path `/api/v1/platform/organizations`. Auth: `platform.organization.read` (both endpoints, via `@PreAuthorize`).
+
+### GET /api/v1/platform/organizations
+
+List/search organizations for the admin companies lookup. Auth: `platform.organization.read`.
+
+**Query params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| q | query | string | No | Search term (name/slug) |
+| page | query | int | No | Zero-based page index (default 0) |
+| size | query | int | No | Page size (default 20, capped at 50) |
+
+**Response (data)** — `PageResponse<AdminOrgRow>`: `content[]` of `AdminOrgRow`, plus `page`, `size`, `totalElements`, `last`.
+
+`AdminOrgRow`
+
+| Field | Type | Description |
+|---|---|---|
+| id | UUID | Organization id |
+| name | string | Organization name |
+| slug | string | URL-safe slug |
+| logoUrl | string | Logo image URL |
+| memberCount | long | Number of members |
+| listingCount | long | Number of listings |
+| createdAt | Instant | Creation timestamp |
+
+---
+
+### GET /api/v1/platform/organizations/{id}
+
+Full org record for the admin console: profile, members and headline counts. Auth: `platform.organization.read`.
+
+**Path params**
+
+| Name | In | Type | Required | Description |
+|---|---|---|---|---|
+| id | path | UUID | Yes | Organization id |
+
+**Response (data)** — `AdminOrgDetail`
+
+| Field | Type | Description |
+|---|---|---|
+| id | UUID | Organization id |
+| name | string | Organization name |
+| slug | string | URL-safe slug |
+| bio | string | Short description |
+| logoUrl | string | Logo image URL |
+| createdBy | UUID | User id of the creator |
+| createdAt | Instant | Creation timestamp |
+| listingCount | long | Number of listings |
+| members | MemberResponse[] | Org members (see [GET /api/v1/orgs/{id}/members](#get-apiv1orgsidmembers)) |
 
 ## Platform IAM (Roles, Permissions, Assignments)
 
