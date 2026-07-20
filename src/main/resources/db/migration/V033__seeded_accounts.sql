@@ -1,0 +1,29 @@
+-- ============================================================================
+-- SEEDED DEMO ACCOUNTS (reference only — this migration performs no changes)
+-- ============================================================================
+-- The super admin is created by V014__seed_superadmin.java. Everything else is
+-- created at startup by DemoDataSeeder (idempotent). All demo accounts share one
+-- password. CHANGE OR DISABLE THESE BEFORE A PUBLIC LAUNCH.
+--
+--  ROLE / PERSONA        EMAIL                       PASSWORD
+--  --------------------  --------------------------  -----------
+--  Super admin           admin@rentle.online         Admin@123
+--  KYC reviewer          kyc@rentle.online           Rentle@123
+--  Support               support@rentle.online       Rentle@123
+--  Individual provider   provider@rentle.online      Rentle@123
+--
+--  Everest Movers (organization)
+--    Owner  (ORG_OWNER)  ever.owner@rentle.online    Rentle@123
+--    Admin  (ORG_ADMIN)  ever.admin@rentle.online    Rentle@123
+--    Staff  (ORG_STAFF)  ever.staff@rentle.online    Rentle@123
+--    Pending invite      ever.invitee@rentle.online  (accept at /organizations/invites/<token>)
+--    Workers (records, not logins): Ram Bahadur, Shyam Lama, Hari Magar
+--
+--  Kathmandu Plumbers (organization, verified in Home Services)
+--    Owner  (ORG_OWNER)  ktm.owner@rentle.online     Rentle@123
+--    Worker (record):    Gopal Tamang
+--
+-- Seeded listings: photography + camera/drone/bike/tent rentals (provider),
+-- house & office moving + packing kit (Everest), plumbing & electrical (Kathmandu Plumbers).
+-- ============================================================================
+SELECT 1;

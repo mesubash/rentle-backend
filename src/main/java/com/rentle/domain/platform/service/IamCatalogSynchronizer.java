@@ -67,6 +67,7 @@ public class IamCatalogSynchronizer {
     }
 
     @EventListener(ApplicationReadyEvent.class)
+    @org.springframework.core.annotation.Order(1)   // roles/permissions before any demo seeding
     @Transactional
     public void synchronizeAtStartup() {
         if (properties.iam().syncCatalog()) {

@@ -72,6 +72,7 @@ rentle:
   email: ${RENTLE_EMAIL:logging}          # logging | smtp
   mail-from: ${RENTLE_MAIL_FROM:no-reply@rentle.app}
   private-upload-dir: ${RENTLE_PRIVATE_UPLOAD_DIR:private-uploads}
+  demo-seed: ${RENTLE_SEED_DEMO:true}
   app-url: ${RENTLE_APP_URL:http://localhost:3000}
   api-base-url: ${RENTLE_API_BASE_URL:http://localhost:8080}
   # Dev delivery for OTP codes and email verification links (no SMS/email provider yet).

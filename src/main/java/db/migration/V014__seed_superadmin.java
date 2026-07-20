@@ -11,7 +11,8 @@ import java.sql.PreparedStatement;
  * password is hashed with the exact same BCrypt encoder the app authenticates
  * against. Idempotent via ON CONFLICT — safe if the email already exists.
  *
- * Credentials: admin@gmail.com / Admin@123  (change the password after first login).
+ * Credentials: admin@rentle.online / Admin@123  (change the password after first login).
+ * This account is also granted SUPER_ADMIN at startup via RENTLE_IAM_SUPER_ADMIN_EMAIL.
  */
 public class V014__seed_superadmin extends BaseJavaMigration {
 
@@ -22,11 +23,11 @@ public class V014__seed_superadmin extends BaseJavaMigration {
                 INSERT INTO users
                     (email, password_hash, full_name, role, status,
                      phone_verified, email_verified, citizenship_verified)
-                VALUES (?, ?, 'Super Admin', 'ADMIN', 'VERIFIED', true, true, true)
+                VALUES (?, ?, 'Rentle Admin', 'ADMIN', 'VERIFIED', true, true, true)
                 ON CONFLICT (email) DO NOTHING
                 """;
         try (PreparedStatement ps = context.getConnection().prepareStatement(sql)) {
-            ps.setString(1, "admin@gmail.com");
+            ps.setString(1, "admin@rentle.online");
             ps.setString(2, hash);
             ps.executeUpdate();
         }
