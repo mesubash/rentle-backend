@@ -4,6 +4,7 @@ import com.rentle.domain.platform.catalog.BookingPermissions;
 import com.rentle.domain.platform.catalog.IdentityPermissions;
 import com.rentle.domain.platform.catalog.KycPermissions;
 import com.rentle.domain.platform.catalog.ListingPermissions;
+import com.rentle.domain.platform.catalog.OrganizationPermissions;
 import com.rentle.domain.platform.catalog.PermissionCatalog;
 import com.rentle.domain.platform.catalog.PermissionDefinition;
 import com.rentle.domain.platform.catalog.PlatformPermissions;
@@ -29,7 +30,8 @@ class PermissionCatalogTest {
             new KycPermissions(),
             new ListingPermissions(),
             new BookingPermissions(),
-            new TrustPermissions()
+            new TrustPermissions(),
+            new OrganizationPermissions()
     );
 
     @Test
