@@ -50,10 +50,11 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - uploads:/var/lib/rentle/uploads
+      # Persists private files (KYC docs, deposit proofs). Public images go to Cloudinary.
+      - rentle_files:/var/lib/rentle
     restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
-  uploads:
+  rentle_files:
