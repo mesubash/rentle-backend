@@ -17,7 +17,8 @@ public class PlatformPermissions implements PermissionCatalog {
                 permission(PermissionKeys.PLATFORM_ASSIGNMENT_READ, "assignment", "read", "View role assignments"),
                 permission(PermissionKeys.PLATFORM_ASSIGNMENT_MANAGE, "assignment", "manage", "Grant and revoke role assignments"),
                 permission(PermissionKeys.PLATFORM_SCOPE_READ, "scope", "read", "View the scope tree"),
-                permission(PermissionKeys.PLATFORM_SCOPE_MANAGE, "scope", "manage", "Create and manage scopes")
+                permission(PermissionKeys.PLATFORM_SCOPE_MANAGE, "scope", "manage", "Create and manage scopes"),
+                permission(PermissionKeys.PLATFORM_ORGANIZATION_READ, "organization", "read", "View all organizations")
         );
     }
 

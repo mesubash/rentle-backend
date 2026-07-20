@@ -4,10 +4,12 @@ import com.rentle.domain.platform.catalog.BookingPermissions;
 import com.rentle.domain.platform.catalog.IdentityPermissions;
 import com.rentle.domain.platform.catalog.KycPermissions;
 import com.rentle.domain.platform.catalog.ListingPermissions;
+import com.rentle.domain.platform.catalog.OrganizationPermissions;
 import com.rentle.domain.platform.catalog.PermissionCatalog;
 import com.rentle.domain.platform.catalog.PermissionDefinition;
 import com.rentle.domain.platform.catalog.PlatformPermissions;
 import com.rentle.domain.platform.catalog.RoleSeeds;
+import com.rentle.domain.platform.catalog.TrustPermissions;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -27,7 +29,9 @@ class PermissionCatalogTest {
             new IdentityPermissions(),
             new KycPermissions(),
             new ListingPermissions(),
-            new BookingPermissions()
+            new BookingPermissions(),
+            new TrustPermissions(),
+            new OrganizationPermissions()
     );
 
     @Test

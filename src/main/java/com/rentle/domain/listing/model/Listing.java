@@ -27,6 +27,10 @@ public class Listing extends AuditableEntity {
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
+    /** Set when the listing is owned by an organization; owner stays the acting human (audit). */
+    @Column(name = "org_id")
+    private java.util.UUID orgId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
@@ -60,6 +64,19 @@ public class Listing extends AuditableEntity {
 
     @Column(name = "location_text", length = 200)
     private String locationText;
+
+    // Owner-set rental rules/terms (condition on return, late fees, house rules). Snapshotted
+    // onto each booking at request time so both sides have a record of what was agreed.
+    @Column(name = "rental_terms", columnDefinition = "TEXT")
+    private String rentalTerms;
+
+    // Answers to this category's LISTING field template (docs/12), validated on write.
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb", nullable = false)
+    private java.util.Map<String, Object> attributes = new java.util.HashMap<>();
+
+    @Column(name = "attributes_template_version")
+    private Integer attributesTemplateVersion;
 
     @Column(name = "average_rating", precision = 3, scale = 2)
     private BigDecimal averageRating;

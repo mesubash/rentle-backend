@@ -67,6 +67,61 @@ public class Booking extends AuditableEntity {
     @Column(name = "renter_note", length = 500)
     private String renterNote;
 
+    // Snapshot of the listing's rental terms accepted by the renter at request time.
+    @Column(name = "agreed_terms", columnDefinition = "TEXT")
+    private String agreedTerms;
+
+    // Answers to this category's BOOKING field template (docs/12), validated on write.
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb", nullable = false)
+    private java.util.Map<String, Object> attributes = new java.util.HashMap<>();
+
+    @Column(name = "attributes_template_version")
+    private Integer attributesTemplateVersion;
+
+    // Cancellation schedule in force at request time (docs/13), snapshotted for arbitration.
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "cancellation_schedule", columnDefinition = "jsonb")
+    private java.util.List<com.rentle.domain.pricing.model.CancellationTier> cancellationSchedule;
+
+    /** Set when the booked listing is org-owned; the org is the provider (fulfils this booking). */
+    @Column(name = "provider_org_id")
+    private UUID providerOrgId;
+
+    // For org listings: which worker will attend (docs/07 Phase B). Name snapshotted.
+    @Column(name = "assigned_worker_id")
+    private UUID assignedWorkerId;
+
+    @Column(name = "assigned_worker_name", length = 120)
+    private String assignedWorkerName;
+
+    // Condition evidence (private storage refs + notes) captured at hand-over and return,
+    // so a deposit dispute has a record instead of being word-against-word.
+    @Column(name = "checkout_condition_ref", length = 300)
+    private String checkoutConditionRef;
+
+    @Column(name = "checkout_note", length = 1000)
+    private String checkoutNote;
+
+    @Column(name = "return_condition_ref", length = 300)
+    private String returnConditionRef;
+
+    @Column(name = "return_note", length = 1000)
+    private String returnNote;
+
+    // Commission snapshot, frozen at completion (P0-3). 0 during the free-launch period.
+    @Column(name = "platform_fee_percent", precision = 5, scale = 2)
+    private java.math.BigDecimal platformFeePercent;
+
+    @Column(name = "platform_fee_amount", precision = 10, scale = 2)
+    private java.math.BigDecimal platformFeeAmount;
+
+    @Column(name = "fee_invoiced", nullable = false)
+    private boolean feeInvoiced = false;
+
+    @Column(name = "fee_invoiced_at")
+    private Instant feeInvoicedAt;
+
     @Column(name = "cancellation_reason", length = 500)
     private String cancellationReason;
 

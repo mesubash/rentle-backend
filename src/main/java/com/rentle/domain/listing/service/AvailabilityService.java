@@ -26,8 +26,10 @@ import java.util.UUID;
 @Service
 public class AvailabilityService {
 
+    // Statuses that do NOT occupy the calendar. REQUESTED is here (P1-27): a pending
+    // request does not hold dates, so it is neither shown as BOOKED nor treated as a conflict.
     private static final Set<BookingStatus> INACTIVE_STATUSES =
-            Set.of(BookingStatus.CANCELLED, BookingStatus.REJECTED);
+            Set.of(BookingStatus.CANCELLED, BookingStatus.REJECTED, BookingStatus.REQUESTED);
 
     private final UnavailableRangeRepository unavailableRangeRepository;
     private final BookingRepository bookingRepository;

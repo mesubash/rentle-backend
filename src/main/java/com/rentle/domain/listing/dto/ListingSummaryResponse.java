@@ -19,9 +19,14 @@ public record ListingSummaryResponse(
         BigDecimal averageRating,
         int reviewCount,
         String coverImage,
+        ListingProviderDto provider,
         Instant createdAt
 ) {
     public static ListingSummaryResponse from(Listing l, String coverImage) {
+        return from(l, coverImage, null);
+    }
+
+    public static ListingSummaryResponse from(Listing l, String coverImage, ListingProviderDto provider) {
         return new ListingSummaryResponse(
                 l.getId(),
                 l.getType().name(),
@@ -34,6 +39,7 @@ public record ListingSummaryResponse(
                 l.getAverageRating(),
                 l.getReviewCount(),
                 coverImage,
+                provider,
                 l.getCreatedAt()
         );
     }

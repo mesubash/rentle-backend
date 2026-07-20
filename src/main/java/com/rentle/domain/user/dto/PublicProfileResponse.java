@@ -13,6 +13,8 @@ public record PublicProfileResponse(
         String profilePhotoUrl,
         boolean verified,
         BigDecimal trustScore,
+        String accountType,
+        String businessName,
         Instant memberSince
 ) {
     public static PublicProfileResponse from(User u) {
@@ -22,6 +24,8 @@ public record PublicProfileResponse(
                 u.getProfilePhotoUrl(),
                 Boolean.TRUE.equals(u.getCitizenshipVerified()),
                 u.getTrustScore(),
+                u.getAccountType(),
+                u.getBusinessName(),
                 u.getCreatedAt()
         );
     }

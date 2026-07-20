@@ -44,6 +44,11 @@ public class PermissionResolverService {
         return Set.copyOf(resolved);
     }
 
+    /** Whether a user holds a permission within a single scope (e.g. an organization). Not cached. */
+    public boolean hasPermissionInScope(UUID userId, UUID scopeId, String permissionKey) {
+        return assignmentRepository.findLivePermissionKeysInScope(userId, scopeId).contains(permissionKey);
+    }
+
     public void invalidate(UUID userId) {
         redisTemplate.delete(cacheKey(userId));
     }

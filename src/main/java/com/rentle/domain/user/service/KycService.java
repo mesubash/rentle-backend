@@ -32,15 +32,18 @@ public class KycService {
     private final UserRepository userRepository;
     private final PrivateStorageService privateStorage;
     private final SmsService smsService;
+    private final com.rentle.domain.notification.service.NotificationService notificationService;
 
     public KycService(KycDetailRepository kycRepository,
                       UserRepository userRepository,
                       PrivateStorageService privateStorage,
-                      SmsService smsService) {
+                      SmsService smsService,
+                      com.rentle.domain.notification.service.NotificationService notificationService) {
         this.kycRepository = kycRepository;
         this.userRepository = userRepository;
         this.privateStorage = privateStorage;
         this.smsService = smsService;
+        this.notificationService = notificationService;
     }
 
     public record KycImage(Resource resource, String contentType) {}
@@ -140,6 +143,8 @@ public class KycService {
 
         smsService.send(user.getPhoneNumber(),
                 "Your Rentle identity is verified. You can now book and list.");
+        notificationService.notify(user.getId(), "KYC_APPROVED",
+                "Your identity is verified — you can now book and list.", "/profile");
         return KycResponse.from(kyc);
     }
 
@@ -153,7 +158,10 @@ public class KycService {
         kyc.setRejectionReason(reason != null && !reason.isBlank() ? reason : "Details could not be verified");
         kyc.setReviewedBy(adminId);
         kyc.setReviewedAt(Instant.now());
-        return KycResponse.from(kycRepository.save(kyc));
+        KycResponse saved = KycResponse.from(kycRepository.save(kyc));
+        notificationService.notify(kyc.getUser().getId(), "KYC_REJECTED",
+                "Your verification needs attention: " + kyc.getRejectionReason(), "/verification");
+        return saved;
     }
 
     private String trimOrNull(String v) {

@@ -24,6 +24,13 @@ public final class SecurityUtils {
         return UUID.fromString(jwt.getSubject());
     }
 
+    /** True when the current authentication holds the given permission authority. */
+    public static boolean hasAuthority(String authority) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream()
+                .anyMatch(granted -> authority.equals(granted.getAuthority()));
+    }
+
     public static Jwt currentJwt() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null || !(auth.getPrincipal() instanceof Jwt jwt)) {

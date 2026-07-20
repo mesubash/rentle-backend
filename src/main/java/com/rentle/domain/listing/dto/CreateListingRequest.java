@@ -21,6 +21,11 @@ public record CreateListingRequest(
         @NotBlank @Size(max = 50) String district,
         @Size(max = 200) String locationText,
         @DecimalMin("0.0") BigDecimal depositAmount,
+        @Size(max = 2000) String rentalTerms,
+        java.util.Map<String, Object> attributes,
+        /** When set, the listing is created as this organization (the caller must be a member
+         *  with organization.listing.manage). When null, it is owned by the acting user. */
+        UUID orgId,
         @Valid ProductDetailDto product,
         @Valid ServiceDetailDto service
 ) {}

@@ -10,6 +10,11 @@ import java.util.Set;
 @Component
 public class RoleSeeds {
 
+    /** Default org membership roles. Seeded once, then admin-editable (non-system). */
+    public static final String ORG_OWNER = "ORG_OWNER";
+    public static final String ORG_ADMIN = "ORG_ADMIN";
+    public static final String ORG_STAFF = "ORG_STAFF";
+
     private final Map<String, RoleSeed> roles;
 
     public RoleSeeds() {
@@ -31,7 +36,12 @@ public class RoleSeeds {
                 PermissionKeys.LISTING_LISTING_READ,
                 PermissionKeys.LISTING_LISTING_MODERATE,
                 PermissionKeys.LISTING_CATEGORY_MANAGE,
-                PermissionKeys.BOOKING_BOOKING_READ
+                PermissionKeys.BOOKING_BOOKING_READ,
+                PermissionKeys.TRUST_REPORT_READ,
+                PermissionKeys.TRUST_REPORT_RESOLVE,
+                PermissionKeys.PLATFORM_SETTINGS_MANAGE,
+                PermissionKeys.BOOKING_FEE_MANAGE,
+                PermissionKeys.PLATFORM_ORGANIZATION_READ
         );
 
         Map<String, RoleSeed> definitions = new LinkedHashMap<>();
@@ -45,7 +55,12 @@ public class RoleSeeds {
                 PermissionKeys.LISTING_LISTING_READ,
                 PermissionKeys.LISTING_LISTING_MODERATE,
                 PermissionKeys.LISTING_CATEGORY_MANAGE,
-                PermissionKeys.BOOKING_BOOKING_READ
+                PermissionKeys.BOOKING_BOOKING_READ,
+                PermissionKeys.TRUST_REPORT_READ,
+                PermissionKeys.TRUST_REPORT_RESOLVE,
+                PermissionKeys.PLATFORM_SETTINGS_MANAGE,
+                PermissionKeys.BOOKING_FEE_MANAGE,
+                PermissionKeys.PLATFORM_ORGANIZATION_READ
         )));
         definitions.put("KYC_REVIEWER", new RoleSeed("KYC Reviewer", null, false, Set.of(
                 PermissionKeys.KYC_SUBMISSION_READ,
@@ -55,9 +70,31 @@ public class RoleSeeds {
         definitions.put("SUPPORT", new RoleSeed("Support", "Read-only support access", false, Set.of(
                 PermissionKeys.IDENTITY_USER_READ,
                 PermissionKeys.BOOKING_BOOKING_READ,
-                PermissionKeys.LISTING_LISTING_READ
+                PermissionKeys.LISTING_LISTING_READ,
+                PermissionKeys.TRUST_REPORT_READ
         )));
         definitions.put("USER", new RoleSeed("User", "Marketplace user", true, Set.of()));
+
+        // Org membership roles — non-system so an admin can retune their permissions at runtime.
+        definitions.put(ORG_OWNER, new RoleSeed("Organization Owner", "Full control of the organization", false, Set.of(
+                PermissionKeys.ORGANIZATION_ORG_MANAGE,
+                PermissionKeys.ORGANIZATION_MEMBER_MANAGE,
+                PermissionKeys.ORGANIZATION_WORKER_MANAGE,
+                PermissionKeys.ORGANIZATION_LISTING_MANAGE,
+                PermissionKeys.ORGANIZATION_BOOKING_MANAGE
+        )));
+        definitions.put(ORG_ADMIN, new RoleSeed("Organization Admin", "Manage members, listings and bookings", false, Set.of(
+                PermissionKeys.ORGANIZATION_MEMBER_MANAGE,
+                PermissionKeys.ORGANIZATION_WORKER_MANAGE,
+                PermissionKeys.ORGANIZATION_LISTING_MANAGE,
+                PermissionKeys.ORGANIZATION_BOOKING_MANAGE
+        )));
+        definitions.put(ORG_STAFF, new RoleSeed("Organization Staff", "Manage listings, workers and bookings", false, Set.of(
+                PermissionKeys.ORGANIZATION_WORKER_MANAGE,
+                PermissionKeys.ORGANIZATION_LISTING_MANAGE,
+                PermissionKeys.ORGANIZATION_BOOKING_MANAGE
+        )));
+
         this.roles = Map.copyOf(definitions);
     }
 

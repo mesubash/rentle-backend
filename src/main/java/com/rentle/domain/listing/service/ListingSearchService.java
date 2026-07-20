@@ -31,6 +31,8 @@ public class ListingSearchService {
                                                        ListingType type,
                                                        UUID categoryId,
                                                        String district,
+                                                       java.math.BigDecimal minPrice,
+                                                       java.math.BigDecimal maxPrice,
                                                        String sort,
                                                        Pageable pageable) {
         String normalizedSort = (sort != null && VALID_SORTS.contains(sort)) ? sort : "newest";
@@ -39,6 +41,8 @@ public class ListingSearchService {
                 type != null ? type.name() : null,
                 categoryId != null ? categoryId.toString() : null,
                 blankToNull(district),
+                minPrice,
+                maxPrice,
                 normalizedSort,
                 pageable);
         return listingService.toSummaryPage(page);

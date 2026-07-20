@@ -37,6 +37,11 @@ public class ReviewController {
         return ApiResponse.ok(reviewService.create(SecurityUtils.currentUserId(), request));
     }
 
+    @GetMapping("/bookings/{id}/my-review-status")
+    public ApiResponse<Boolean> myReviewStatus(@PathVariable UUID id) {
+        return ApiResponse.ok(reviewService.hasReviewed(id, SecurityUtils.currentUserId()));
+    }
+
     @GetMapping("/listings/{id}/reviews")
     public ApiResponse<PageResponse<ReviewResponse>> forListing(
             @PathVariable UUID id,

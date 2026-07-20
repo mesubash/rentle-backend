@@ -17,6 +17,7 @@ public record UpdateListingRequest(
         @Size(max = 50) String district,
         @Size(max = 200) String locationText,
         @DecimalMin("0.0") BigDecimal depositAmount,
+        @Size(max = 2000) String rentalTerms,
         ListingStatus status,
         @Valid ProductDetailDto product,
         @Valid ServiceDetailDto service

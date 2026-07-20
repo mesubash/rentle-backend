@@ -54,6 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BookingFlowIntegrationTest {
 
     @Autowired BookingService bookingService;
+    @Autowired com.rentle.domain.admin.service.AdminService adminService;
     @Autowired ReviewService reviewService;
     @Autowired MessageService messageService;
     @Autowired ListingService listingService;
@@ -106,15 +107,17 @@ class BookingFlowIntegrationTest {
         return new CreateBookingRequest(listingId,
                 LocalDate.now().plusDays(startOffsetDays),
                 LocalDate.now().plusDays(endOffsetDays),
-                null, null, "test booking");
+                null, null, "test booking", null);
     }
 
     @Test
     void fullLifecycleWithDepositProofAndReviews() {
         Listing listing = createActiveListing(owner, "5000.00");
 
+        // Start today so the booking can be legitimately completed later in the flow
+        // (completion requires the rental period to have started). 0..2 = 3 days = 3000.
         BookingResponse booking = bookingService.createBooking(
-                renter.getId(), bookingRequest(listing.getId(), 5, 7));
+                renter.getId(), bookingRequest(listing.getId(), 0, 2));
         assertEquals("REQUESTED", booking.status());
         assertEquals(new BigDecimal("3000.00"), booking.totalPrice());
 
@@ -169,9 +172,24 @@ class BookingFlowIntegrationTest {
     }
 
     @Test
-    void preventsDoubleBookingAtServiceLevel() {
+    void overlappingRequestsAreAllowedUntilOneIsApproved() {
+        // P1-27: a pending request does not hold dates, so two renters may both request the
+        // same window. Exclusivity is claimed at approval.
         Listing listing = createActiveListing(owner, "0.00");
         bookingService.createBooking(renter.getId(), bookingRequest(listing.getId(), 5, 8));
+
+        User secondRenter = createUser(UserStatus.VERIFIED);
+        BookingResponse second = bookingService.createBooking(
+                secondRenter.getId(), bookingRequest(listing.getId(), 7, 9));
+        assertEquals("REQUESTED", second.status());
+    }
+
+    @Test
+    void preventsDoubleBookingAtServiceLevel() {
+        // Once a booking is APPROVED it holds the dates: a later overlapping *request* is rejected.
+        Listing listing = createActiveListing(owner, "0.00");
+        BookingResponse first = bookingService.createBooking(renter.getId(), bookingRequest(listing.getId(), 5, 8));
+        bookingService.approve(owner.getId(), first.id());
 
         User secondRenter = createUser(UserStatus.VERIFIED);
         assertThrows(BookingConflictException.class, () ->
@@ -181,17 +199,30 @@ class BookingFlowIntegrationTest {
     @Test
     void preventsDoubleBookingAtDatabaseLevel() {
         Listing listing = createActiveListing(owner, "0.00");
-        bookingService.createBooking(renter.getId(), bookingRequest(listing.getId(), 5, 8));
+        BookingResponse first = bookingService.createBooking(renter.getId(), bookingRequest(listing.getId(), 5, 8));
+        bookingService.approve(owner.getId(), first.id());
 
-        // Bypass the service pre-check — the GiST exclusion constraint must still reject
+        // Bypass the service pre-check — the GiST exclusion constraint must still reject a
+        // second APPROVED booking over the same dates (REQUESTED no longer participates).
         User secondRenter = createUser(UserStatus.VERIFIED);
         Booking overlap = new Booking();
         overlap.setListing(listingRepository.findById(listing.getId()).orElseThrow());
         overlap.setRenter(secondRenter);
         overlap.setStartDate(LocalDate.now().plusDays(6));
         overlap.setEndDate(LocalDate.now().plusDays(10));
+        overlap.setStatus(com.rentle.domain.booking.model.BookingStatus.APPROVED);
         overlap.setTotalPrice(new BigDecimal("5000.00"));
         assertThrows(Exception.class, () -> bookingRepository.saveAndFlush(overlap));
+    }
+
+    @Test
+    void adminBookingListMapsWithoutLazyInitError() {
+        // Regression: listBookings maps BookingResponse (which reads listing/owner) and must do
+        // so inside a session — otherwise a populated list throws LazyInitializationException.
+        Listing listing = createActiveListing(owner, "0.00");
+        bookingService.createBooking(renter.getId(), bookingRequest(listing.getId(), 0, 2));
+        var page = adminService.listBookings(PageRequest.of(0, 20));
+        assertTrue(page.content().stream().anyMatch(b -> b.listingTitle() != null));
     }
 
     @Test
@@ -250,7 +281,7 @@ class BookingFlowIntegrationTest {
         CreateListingRequest req = new CreateListingRequest(
                 "Nikon D850 body", "Well maintained DSLR body available for rent in Kathmandu.",
                 category.getId(), ListingType.PRODUCT, new BigDecimal("800.00"), PriceUnit.PER_DAY,
-                "Kathmandu", null, BigDecimal.ZERO,
+                "Kathmandu", null, BigDecimal.ZERO, null, null, null,
                 new ProductDetailDto(ItemCondition.GOOD, "Nikon", "D850", 1, 30), null);
 
         assertThrows(UnauthorizedException.class, () -> listingService.create(pending.getId(), req));
@@ -276,7 +307,7 @@ class BookingFlowIntegrationTest {
 
     private CreateBookingRequest hourlyRequest(UUID listingId, int dayOffset, LocalTime start, LocalTime end) {
         LocalDate day = LocalDate.now().plusDays(dayOffset);
-        return new CreateBookingRequest(listingId, day, day, start, end, "test");
+        return new CreateBookingRequest(listingId, day, day, start, end, "test", null);
     }
 
     @Test
@@ -294,13 +325,26 @@ class BookingFlowIntegrationTest {
 
     @Test
     void hourlyServiceRejectsOverlappingSameDaySlots() {
+        // Time-aware GiST constraint still prevents two APPROVED hourly bookings from
+        // overlapping (P1-27 only frees REQUESTED). Approve the first, then a direct
+        // APPROVED save of an overlapping window must be rejected by the DB.
         Listing listing = createHourlyService(owner);
-        bookingService.createBooking(renter.getId(),
+        BookingResponse first = bookingService.createBooking(renter.getId(),
                 hourlyRequest(listing.getId(), 5, LocalTime.of(9, 0), LocalTime.of(12, 0)));
+        bookingService.approve(owner.getId(), first.id());
 
         User secondRenter = createUser(UserStatus.VERIFIED);
-        assertThrows(Exception.class, () -> bookingService.createBooking(secondRenter.getId(),
-                hourlyRequest(listing.getId(), 5, LocalTime.of(11, 0), LocalTime.of(13, 0))));
+        Booking overlap = new Booking();
+        overlap.setListing(listingRepository.findById(listing.getId()).orElseThrow());
+        overlap.setRenter(secondRenter);
+        LocalDate day = LocalDate.now().plusDays(5);
+        overlap.setStartDate(day);
+        overlap.setEndDate(day);
+        overlap.setStartTime(LocalTime.of(11, 0));
+        overlap.setEndTime(LocalTime.of(13, 0));
+        overlap.setStatus(com.rentle.domain.booking.model.BookingStatus.APPROVED);
+        overlap.setTotalPrice(new BigDecimal("1000.00"));
+        assertThrows(Exception.class, () -> bookingRepository.saveAndFlush(overlap));
     }
 
     @Test
@@ -316,7 +360,7 @@ class BookingFlowIntegrationTest {
         Listing listing = createHourlyService(owner);
         LocalDate day = LocalDate.now().plusDays(5);
         CreateBookingRequest multiDay = new CreateBookingRequest(
-                listing.getId(), day, day.plusDays(1), LocalTime.of(9, 0), LocalTime.of(11, 0), null);
+                listing.getId(), day, day.plusDays(1), LocalTime.of(9, 0), LocalTime.of(11, 0), null, null);
         assertThrows(RentleException.class,
                 () -> bookingService.createBooking(renter.getId(), multiDay));
     }

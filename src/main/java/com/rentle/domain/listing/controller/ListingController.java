@@ -65,19 +65,25 @@ public class ListingController {
             @RequestParam(required = false) ListingType type,
             @RequestParam(required = false) UUID categoryId,
             @RequestParam(required = false) String district,
+            @RequestParam(required = false) java.math.BigDecimal minPrice,
+            @RequestParam(required = false) java.math.BigDecimal maxPrice,
             @RequestParam(required = false, defaultValue = "newest") String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, Math.min(size, 50));
-        return ApiResponse.ok(listingSearchService.search(q, type, categoryId, district, sort, pageable));
+        return ApiResponse.ok(listingSearchService.search(q, type, categoryId, district, minPrice, maxPrice, sort, pageable));
     }
 
     @GetMapping("/listings/me")
     public ApiResponse<PageResponse<ListingSummaryResponse>> myListings(
+            @RequestParam(required = false) UUID orgId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         Pageable pageable = PageRequest.of(page, Math.min(size, 50), Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ApiResponse.ok(listingService.myListings(SecurityUtils.currentUserId(), pageable));
+        UUID userId = SecurityUtils.currentUserId();
+        return ApiResponse.ok(orgId != null
+                ? listingService.orgListings(userId, orgId, pageable)
+                : listingService.myListings(userId, pageable));
     }
 
     @GetMapping("/listings/{id}")

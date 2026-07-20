@@ -62,6 +62,16 @@ public class UserService {
             user.setEmail(req.email());
             user.setEmailVerified(false); // changed email must be re-verified
         }
+        if (req.paymentWallet() != null) {
+            String wallet = req.paymentWallet().isBlank() ? null : req.paymentWallet().trim();
+            user.setPaymentWallet(wallet);
+        }
+        if (req.accountType() != null && ("INDIVIDUAL".equals(req.accountType()) || "BUSINESS".equals(req.accountType()))) {
+            user.setAccountType(req.accountType());
+        }
+        if (req.businessName() != null) {
+            user.setBusinessName(req.businessName().isBlank() ? null : req.businessName().trim());
+        }
         return UserProfileResponse.from(userRepository.save(user));
     }
 

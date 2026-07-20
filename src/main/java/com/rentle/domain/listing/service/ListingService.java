@@ -1,8 +1,14 @@
 package com.rentle.domain.listing.service;
 
+import com.rentle.domain.platform.catalog.PermissionKeys;
+import com.rentle.shared.security.SecurityUtils;
 import com.rentle.domain.listing.dto.CreateListingRequest;
+import com.rentle.domain.listing.dto.ListingProviderDto;
 import com.rentle.domain.listing.dto.ListingResponse;
 import com.rentle.domain.listing.dto.ListingSummaryResponse;
+import com.rentle.domain.organization.model.Organization;
+import com.rentle.domain.organization.repository.OrganizationRepository;
+import com.rentle.domain.organization.service.OrganizationService;
 import com.rentle.domain.listing.dto.ProductDetailDto;
 import com.rentle.domain.listing.dto.ServiceDetailDto;
 import com.rentle.domain.listing.dto.UpdateListingRequest;
@@ -50,6 +56,10 @@ public class ListingService {
     private final ListingImageRepository listingImageRepository;
     private final UserRepository userRepository;
     private final RateLimitService rateLimitService;
+    private final com.rentle.domain.template.service.FieldTemplateService templateService;
+    private final com.rentle.domain.verification.service.ProviderVerificationService providerVerification;
+    private final OrganizationService organizationService;
+    private final OrganizationRepository organizationRepository;
 
     public ListingService(ListingRepository listingRepository,
                           CategoryRepository categoryRepository,
@@ -57,7 +67,11 @@ public class ListingService {
                           ServiceDetailRepository serviceDetailRepository,
                           ListingImageRepository listingImageRepository,
                           UserRepository userRepository,
-                          RateLimitService rateLimitService) {
+                          RateLimitService rateLimitService,
+                          com.rentle.domain.template.service.FieldTemplateService templateService,
+                          com.rentle.domain.verification.service.ProviderVerificationService providerVerification,
+                          OrganizationService organizationService,
+                          OrganizationRepository organizationRepository) {
         this.listingRepository = listingRepository;
         this.categoryRepository = categoryRepository;
         this.productDetailRepository = productDetailRepository;
@@ -65,6 +79,10 @@ public class ListingService {
         this.listingImageRepository = listingImageRepository;
         this.userRepository = userRepository;
         this.rateLimitService = rateLimitService;
+        this.templateService = templateService;
+        this.providerVerification = providerVerification;
+        this.organizationService = organizationService;
+        this.organizationRepository = organizationRepository;
     }
 
     @Transactional
@@ -76,6 +94,16 @@ public class ListingService {
         }
         if (!rateLimitService.allow("listing-create:" + ownerId, LISTING_CREATE_PER_DAY, Duration.ofDays(1))) {
             throw new RentleException("Daily listing creation limit reached");
+        }
+
+        // When creating as an organization, the acting user must be a member allowed to list for it.
+        Organization org = null;
+        if (req.orgId() != null) {
+            if (!organizationService.hasOrgPermission(ownerId, req.orgId(),
+                    PermissionKeys.ORGANIZATION_LISTING_MANAGE)) {
+                throw new UnauthorizedException("You cannot create listings for this organization");
+            }
+            org = organizationService.requireOrg(req.orgId());
         }
 
         Category category = categoryRepository.findById(req.categoryId())
@@ -93,8 +121,19 @@ public class ListingService {
             throw new RentleException("Service details are required for service listings");
         }
 
+        // Provider-verification gate (docs/07 Phase A): a SERVICE listing in a category that
+        // requires credentials needs an approved provider verification for that category.
+        boolean verified = org != null
+                ? providerVerification.isVerifiedForOrg(org.getId(), category.getId())
+                : providerVerification.isVerifiedFor(ownerId, category.getId());
+        if (req.type() == ListingType.SERVICE && !verified) {
+            throw new RentleException(
+                    "This category requires provider verification. Submit your credentials for approval before listing.");
+        }
+
         Listing listing = new Listing();
         listing.setOwner(owner);
+        if (org != null) listing.setOrgId(org.getId());
         listing.setCategory(category);
         listing.setType(req.type());
         listing.setTitle(req.title());
@@ -103,7 +142,14 @@ public class ListingService {
         listing.setPriceUnit(req.priceUnit());
         listing.setDistrict(req.district());
         listing.setLocationText(req.locationText());
+        listing.setRentalTerms(req.rentalTerms());
         listing.setDepositAmount(req.depositAmount() != null ? req.depositAmount() : BigDecimal.ZERO);
+        // Validate + store this category's LISTING template answers, if a template is defined.
+        java.util.Map<String, Object> attrs = req.attributes() != null ? req.attributes() : new java.util.HashMap<>();
+        var listingTpl = templateService.current(category.getId(), com.rentle.domain.template.model.TemplateScope.LISTING);
+        listingTpl.ifPresent(tpl -> templateService.validateAnswers(tpl.getFields(), attrs));
+        listing.setAttributes(attrs);
+        listing.setAttributesTemplateVersion(listingTpl.map(t -> t.getVersion()).orElse(null));
         listing = listingRepository.save(listing);
 
         ProductDetailDto productDto = null;
@@ -127,7 +173,7 @@ public class ListingService {
             serviceDto = ServiceDetailDto.from(serviceDetailRepository.save(d));
         }
 
-        return ListingResponse.from(listing, List.of(), productDto, serviceDto);
+        return ListingResponse.from(listing, List.of(), productDto, serviceDto, providerFor(listing, org));
     }
 
     @Transactional
@@ -146,6 +192,7 @@ public class ListingService {
         if (req.priceUnit() != null) listing.setPriceUnit(req.priceUnit());
         if (req.district() != null) listing.setDistrict(req.district());
         if (req.locationText() != null) listing.setLocationText(req.locationText());
+        if (req.rentalTerms() != null) listing.setRentalTerms(req.rentalTerms());
         if (req.depositAmount() != null) listing.setDepositAmount(req.depositAmount());
         listing = listingRepository.save(listing);
 
@@ -184,8 +231,9 @@ public class ListingService {
         Listing listing = listingRepository.findById(listingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Listing not found"));
         boolean isOwner = requesterId != null && listing.getOwner().getId().equals(requesterId);
+        boolean canReadAny = SecurityUtils.hasAuthority(PermissionKeys.LISTING_LISTING_READ);
         if (listing.getStatus() == ListingStatus.REMOVED
-                || (listing.getStatus() != ListingStatus.ACTIVE && !isOwner)) {
+                || (listing.getStatus() != ListingStatus.ACTIVE && !isOwner && !canReadAny)) {
             throw new ResourceNotFoundException("Listing not found");
         }
         return toResponse(listing);
@@ -201,6 +249,22 @@ public class ListingService {
         return toSummaryPage(listingRepository.findByOwnerIdAndStatusNot(ownerId, ListingStatus.REMOVED, pageable));
     }
 
+    /** Active-listing summaries for a set of ids (used by favorites), newest first. */
+    @Transactional(readOnly = true)
+    public List<ListingSummaryResponse> summariesByIds(List<UUID> ids) {
+        if (ids.isEmpty()) return List.of();
+        List<Listing> listings = listingRepository.findAllById(ids).stream()
+                .filter(l -> l.getStatus() == ListingStatus.ACTIVE)
+                .sorted(java.util.Comparator.comparing(Listing::getCreatedAt).reversed())
+                .toList();
+        Map<UUID, String> covers = listingImageRepository.findByListingIdInOrderBySortOrderAsc(
+                        listings.stream().map(Listing::getId).toList()).stream()
+                .collect(Collectors.toMap(img -> img.getListing().getId(),
+                        com.rentle.domain.listing.model.ListingImage::getUrl, (a, b) -> a));
+        Map<UUID, Organization> orgs = orgsFor(listings);
+        return listings.stream().map(l -> ListingSummaryResponse.from(l, covers.get(l.getId()), providerOf(l, orgs))).toList();
+    }
+
     PageResponse<ListingSummaryResponse> toSummaryPage(Page<Listing> page) {
         List<UUID> ids = page.getContent().stream().map(Listing::getId).toList();
         Map<UUID, String> covers = ids.isEmpty() ? Map.of()
@@ -209,7 +273,22 @@ public class ListingService {
                                 img -> img.getListing().getId(),
                                 com.rentle.domain.listing.model.ListingImage::getUrl,
                                 (first, second) -> first));
-        return PageResponse.from(page, l -> ListingSummaryResponse.from(l, covers.get(l.getId())));
+        Map<UUID, Organization> orgs = orgsFor(page.getContent());
+        return PageResponse.from(page, l -> ListingSummaryResponse.from(l, covers.get(l.getId()), providerOf(l, orgs)));
+    }
+
+    /** Batch-load the organizations owning any of these listings, keyed by org id. */
+    private Map<UUID, Organization> orgsFor(List<Listing> listings) {
+        List<UUID> orgIds = listings.stream().map(Listing::getOrgId).filter(java.util.Objects::nonNull).distinct().toList();
+        if (orgIds.isEmpty()) return Map.of();
+        return organizationRepository.findAllById(orgIds).stream()
+                .collect(Collectors.toMap(Organization::getId, o -> o));
+    }
+
+    private ListingProviderDto providerOf(Listing l, Map<UUID, Organization> orgs) {
+        if (l.getOrgId() == null) return null;   // individual listings show no provider badge (unchanged)
+        Organization org = orgs.get(l.getOrgId());
+        return org != null ? ListingProviderDto.org(org) : null;
     }
 
     private ListingResponse toResponse(Listing listing) {
@@ -219,15 +298,35 @@ public class ListingService {
                 .map(ServiceDetailDto::from).orElse(null);
         return ListingResponse.from(listing,
                 listingImageRepository.findByListingIdOrderBySortOrderAsc(listing.getId()),
-                product, service);
+                product, service, providerFor(listing, null));
     }
 
     private Listing getOwnedListing(UUID ownerId, UUID listingId) {
         Listing listing = listingRepository.findById(listingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Listing not found"));
-        if (!listing.getOwner().getId().equals(ownerId)) {
+        boolean isOwner = listing.getOwner().getId().equals(ownerId);
+        boolean orgManager = listing.getOrgId() != null && organizationService.hasOrgPermission(
+                ownerId, listing.getOrgId(), PermissionKeys.ORGANIZATION_LISTING_MANAGE);
+        if (!isOwner && !orgManager) {
             throw new UnauthorizedException("Only the listing owner can modify this listing");
         }
         return listing;
+    }
+
+    /** Listings owned by an organization (any non-removed status) for its members' dashboard. */
+    @Transactional(readOnly = true)
+    public PageResponse<ListingSummaryResponse> orgListings(UUID userId, UUID orgId, Pageable pageable) {
+        if (!organizationService.hasOrgPermission(userId, orgId, PermissionKeys.ORGANIZATION_LISTING_MANAGE)) {
+            throw new UnauthorizedException("You are not a member of this organization");
+        }
+        return toSummaryPage(listingRepository.findByOrgIdAndStatusNot(orgId, ListingStatus.REMOVED, pageable));
+    }
+
+    /** Provider identity for a listing — the org when org-owned, otherwise the individual owner. */
+    private ListingProviderDto providerFor(Listing listing, Organization org) {
+        if (listing.getOrgId() == null) return ListingProviderDto.user(listing.getOwner());
+        Organization resolved = org != null ? org
+                : organizationRepository.findById(listing.getOrgId()).orElse(null);
+        return resolved != null ? ListingProviderDto.org(resolved) : ListingProviderDto.user(listing.getOwner());
     }
 }
