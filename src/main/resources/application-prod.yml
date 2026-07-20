@@ -11,20 +11,21 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT}
 
+  # SMTP is optional (email is off by default — Discord handles events). Blank host = no mail sender.
   mail:
-    host: ${MAIL_HOST}
-    port: ${MAIL_PORT}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
 
 rentle:
-  # No ${VAR:default} anywhere — an unset required var fails fast.
-  storage: ${RENTLE_STORAGE}            # 'cloudinary' in prod (local disk is not durable)
-  sms: ${RENTLE_SMS}                    # 'sparrow' in prod
-  email: ${RENTLE_EMAIL}                # 'smtp' in prod
-  mail-from: ${RENTLE_MAIL_FROM}
-  app-url: ${RENTLE_APP_URL}
-  api-base-url: ${RENTLE_API_BASE_URL}
+  # Real secrets fail fast (no default); optional integrations default to off.
+  storage: ${RENTLE_STORAGE}            # required — 'cloudinary' in prod
+  app-url: ${RENTLE_APP_URL}            # required
+  api-base-url: ${RENTLE_API_BASE_URL}  # required
+  sms: ${RENTLE_SMS:logging}            # 'sparrow' to enable real SMS
+  email: ${RENTLE_EMAIL:logging}        # 'smtp' to enable real email
+  mail-from: ${RENTLE_MAIL_FROM:no-reply@rentle.online}
 
 # Google sign-in (required in prod; set the OAuth client from Google Cloud Console).
 google:
