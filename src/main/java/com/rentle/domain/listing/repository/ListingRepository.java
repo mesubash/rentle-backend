@@ -73,4 +73,20 @@ public interface ListingRepository extends JpaRepository<Listing, UUID> {
                          @Param("maxPrice") java.math.BigDecimal maxPrice,
                          @Param("sort") String sort,
                          Pageable pageable);
+
+    /** Admin moderation search; every filter optional. */
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT l FROM Listing l
+        WHERE (:status IS NULL OR l.status = :status)
+          AND (:type IS NULL OR l.type = :type)
+          AND (:q IS NULL
+               OR LOWER(l.title) LIKE :q
+               OR LOWER(l.district) LIKE :q
+               OR LOWER(l.owner.fullName) LIKE :q)
+    """)
+    org.springframework.data.domain.Page<Listing> adminSearch(
+            @org.springframework.data.repository.query.Param("status") com.rentle.domain.listing.model.ListingStatus status,
+            @org.springframework.data.repository.query.Param("type") com.rentle.domain.listing.model.ListingType type,
+            @org.springframework.data.repository.query.Param("q") String q,
+            org.springframework.data.domain.Pageable pageable);
 }

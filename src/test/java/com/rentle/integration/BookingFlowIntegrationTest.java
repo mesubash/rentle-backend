@@ -58,6 +58,7 @@ class BookingFlowIntegrationTest {
     @Autowired ReviewService reviewService;
     @Autowired MessageService messageService;
     @Autowired ListingService listingService;
+    @Autowired com.rentle.domain.listing.service.ListingImageService listingImageService;
     @Autowired AvailabilityService availabilityService;
     @Autowired BookingRepository bookingRepository;
     @Autowired ListingRepository listingRepository;
@@ -221,7 +222,7 @@ class BookingFlowIntegrationTest {
         // so inside a session — otherwise a populated list throws LazyInitializationException.
         Listing listing = createActiveListing(owner, "0.00");
         bookingService.createBooking(renter.getId(), bookingRequest(listing.getId(), 0, 2));
-        var page = adminService.listBookings(PageRequest.of(0, 20));
+        var page = adminService.listBookings(null, null, null, PageRequest.of(0, 20));
         assertTrue(page.content().stream().anyMatch(b -> b.listingTitle() != null));
     }
 
@@ -363,5 +364,79 @@ class BookingFlowIntegrationTest {
                 listing.getId(), day, day.plusDays(1), LocalTime.of(9, 0), LocalTime.of(11, 0), null, null);
         assertThrows(RentleException.class,
                 () -> bookingService.createBooking(renter.getId(), multiDay));
+    }
+
+    @Test
+    void threadSummaryCarriesBookingContextForBothParticipants() {
+        Listing listing = createActiveListing(owner, "0.00");
+        BookingResponse booking = bookingService.createBooking(
+                renter.getId(), bookingRequest(listing.getId(), 1, 3));
+        messageService.send(renter.getId(), booking.id(), new SendMessageRequest("Is this available?"));
+
+        // The inbox reads these fields instead of fetching every booking just to look up a
+        // title and a name, so the query must resolve them per viewer.
+        var renterView = messageService.threadSummaries(renter.getId());
+        assertEquals(1, renterView.size());
+        var summary = renterView.get(0);
+        assertEquals(booking.id(), summary.bookingId());
+        assertEquals(listing.getTitle(), summary.listingTitle());
+        assertEquals(owner.getId(), summary.ownerId());
+        assertEquals(owner.getFullName(), summary.ownerName());
+        assertEquals(renter.getFullName(), summary.renterName());
+        assertEquals(BookingStatus.REQUESTED, summary.status());
+        assertNotNull(summary.lastMessageAt());
+        assertEquals(0L, summary.unreadCount());
+
+        // The owner has not read the renter's message yet.
+        var ownerView = messageService.threadSummaries(owner.getId());
+        assertEquals(1, ownerView.size());
+        assertEquals(1L, ownerView.get(0).unreadCount());
+        assertEquals(listing.getTitle(), ownerView.get(0).listingTitle());
+    }
+
+    @Test
+    void bookingCarriesListingCoverImage() throws Exception {
+        Listing listing = createActiveListing(owner, "0.00");
+        listingImageService.addImages(owner.getId(), listing.getId(), java.util.List.of(
+                new MockMultipartFile("files", "cover.jpg", "image/jpeg", new byte[]{1, 2, 3})));
+
+        BookingResponse booking = bookingService.createBooking(
+                renter.getId(), bookingRequest(listing.getId(), 1, 3));
+
+        // Detail and list paths both resolve the cover, so the client no longer has to fetch
+        // the whole listing to render a thumbnail.
+        assertNotNull(bookingService.getDetail(renter.getId(), booking.id()).coverImage());
+        var page = bookingService.myBookingsAsRenter(renter.getId(), PageRequest.of(0, 10));
+        assertNotNull(page.content().get(0).coverImage());
+    }
+
+    @Test
+    void adminSearchFiltersServerSide() {
+        Listing listing = createActiveListing(owner, "0.00");
+        bookingService.createBooking(renter.getId(), bookingRequest(listing.getId(), 1, 3));
+
+        // Null filters must be treated as "no filter" - a null enum parameter in the
+        // IS NULL guard is the part most likely to fail at runtime rather than compile.
+        var unfiltered = adminService.listBookings(null, null, null, PageRequest.of(0, 20));
+        assertTrue(unfiltered.totalElements() >= 1);
+
+        var byStatus = adminService.listBookings(null, "REQUESTED", null, PageRequest.of(0, 20));
+        assertTrue(byStatus.content().stream().allMatch(b -> "REQUESTED".equals(b.status())));
+
+        var byType = adminService.listBookings(null, null, "PRODUCT", PageRequest.of(0, 20));
+        assertTrue(byType.totalElements() >= 1);
+
+        var byQuery = adminService.listBookings("Canon EOS", null, null, PageRequest.of(0, 20));
+        assertTrue(byQuery.content().stream().anyMatch(b -> b.listingTitle().contains("Canon")));
+
+        var noMatch = adminService.listBookings("zzz-no-such-listing", null, null, PageRequest.of(0, 20));
+        assertEquals(0, noMatch.totalElements());
+
+        // An unknown enum value must not 500; it is ignored like a blank filter.
+        var bogus = adminService.listBookings(null, "NOT_A_STATUS", null, PageRequest.of(0, 20));
+        assertTrue(bogus.totalElements() >= 1);
+
+        var listings = adminService.listListings("Canon", "ACTIVE", "PRODUCT", PageRequest.of(0, 20));
+        assertTrue(listings.totalElements() >= 1);
     }
 }
