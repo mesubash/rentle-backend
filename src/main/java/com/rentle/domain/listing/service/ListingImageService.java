@@ -44,8 +44,8 @@ public class ListingImageService {
         if (files == null || files.isEmpty()) {
             throw new RentleException("No files provided");
         }
-        long existing = listingImageRepository.countByListingId(listingId);
-        if (existing + files.size() > props.maxListingImages()) {
+        List<ListingImage> existingImages = listingImageRepository.findByListingIdOrderBySortOrderAsc(listingId);
+        if (existingImages.size() + files.size() > props.maxListingImages()) {
             throw new RentleException("A listing can have at most " + props.maxListingImages() + " images");
         }
         for (MultipartFile file : files) {
@@ -53,7 +53,7 @@ public class ListingImageService {
         }
 
         List<String> urls = new ArrayList<>();
-        int order = (int) existing;
+        int order = existingImages.stream().mapToInt(ListingImage::getSortOrder).max().orElse(-1) + 1;
         for (MultipartFile file : files) {
             String url = storageService.upload(file, "listings/" + listingId);
             ListingImage image = new ListingImage();
@@ -75,6 +75,12 @@ public class ListingImageService {
             throw new ResourceNotFoundException("Image not found");
         }
         listingImageRepository.delete(image);
+        listingImageRepository.flush();
+        List<ListingImage> remaining = listingImageRepository.findByListingIdOrderBySortOrderAsc(listingId);
+        for (int index = 0; index < remaining.size(); index++) {
+            remaining.get(index).setSortOrder(index);
+        }
+        listingImageRepository.saveAll(remaining);
     }
 
     private Listing getOwnedListing(UUID ownerId, UUID listingId) {

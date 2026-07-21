@@ -262,7 +262,8 @@ public class ListingService {
                 .collect(Collectors.toMap(img -> img.getListing().getId(),
                         com.rentle.domain.listing.model.ListingImage::getUrl, (a, b) -> a));
         Map<UUID, Organization> orgs = orgsFor(listings);
-        return listings.stream().map(l -> ListingSummaryResponse.from(l, covers.get(l.getId()), providerOf(l, orgs))).toList();
+        Map<UUID, User> owners = ownersFor(listings);
+        return listings.stream().map(l -> ListingSummaryResponse.from(l, covers.get(l.getId()), providerOf(l, orgs, owners))).toList();
     }
 
     PageResponse<ListingSummaryResponse> toSummaryPage(Page<Listing> page) {
@@ -274,7 +275,8 @@ public class ListingService {
                                 com.rentle.domain.listing.model.ListingImage::getUrl,
                                 (first, second) -> first));
         Map<UUID, Organization> orgs = orgsFor(page.getContent());
-        return PageResponse.from(page, l -> ListingSummaryResponse.from(l, covers.get(l.getId()), providerOf(l, orgs)));
+        Map<UUID, User> owners = ownersFor(page.getContent());
+        return PageResponse.from(page, l -> ListingSummaryResponse.from(l, covers.get(l.getId()), providerOf(l, orgs, owners)));
     }
 
     /** Batch-load the organizations owning any of these listings, keyed by org id. */
@@ -285,8 +287,18 @@ public class ListingService {
                 .collect(Collectors.toMap(Organization::getId, o -> o));
     }
 
-    private ListingProviderDto providerOf(Listing l, Map<UUID, Organization> orgs) {
-        if (l.getOrgId() == null) return null;   // individual listings show no provider badge (unchanged)
+    private Map<UUID, User> ownersFor(List<Listing> listings) {
+        List<UUID> ownerIds = listings.stream().map(l -> l.getOwner().getId()).distinct().toList();
+        if (ownerIds.isEmpty()) return Map.of();
+        return userRepository.findAllById(ownerIds).stream()
+                .collect(Collectors.toMap(User::getId, user -> user));
+    }
+
+    private ListingProviderDto providerOf(Listing l, Map<UUID, Organization> orgs, Map<UUID, User> owners) {
+        if (l.getOrgId() == null) {
+            User owner = owners.get(l.getOwner().getId());
+            return owner != null ? ListingProviderDto.user(owner) : null;
+        }
         Organization org = orgs.get(l.getOrgId());
         return org != null ? ListingProviderDto.org(org) : null;
     }

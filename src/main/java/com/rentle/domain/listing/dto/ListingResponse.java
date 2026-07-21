@@ -30,6 +30,7 @@ public record ListingResponse(
         int reviewCount,
         int totalBookings,
         List<String> images,
+        List<ListingImageResponse> imageItems,
         ProductDetailDto product,
         ServiceDetailDto service,
         Instant createdAt
@@ -60,6 +61,7 @@ public record ListingResponse(
                 l.getReviewCount(),
                 l.getTotalBookings(),
                 images.stream().map(ListingImage::getUrl).toList(),
+                images.stream().map(ListingImageResponse::from).toList(),
                 product,
                 service,
                 l.getCreatedAt()
