@@ -222,7 +222,7 @@ class BookingFlowIntegrationTest {
         // so inside a session — otherwise a populated list throws LazyInitializationException.
         Listing listing = createActiveListing(owner, "0.00");
         bookingService.createBooking(renter.getId(), bookingRequest(listing.getId(), 0, 2));
-        var page = adminService.listBookings(PageRequest.of(0, 20));
+        var page = adminService.listBookings(null, null, null, PageRequest.of(0, 20));
         assertTrue(page.content().stream().anyMatch(b -> b.listingTitle() != null));
     }
 
@@ -408,5 +408,35 @@ class BookingFlowIntegrationTest {
         assertNotNull(bookingService.getDetail(renter.getId(), booking.id()).coverImage());
         var page = bookingService.myBookingsAsRenter(renter.getId(), PageRequest.of(0, 10));
         assertNotNull(page.content().get(0).coverImage());
+    }
+
+    @Test
+    void adminSearchFiltersServerSide() {
+        Listing listing = createActiveListing(owner, "0.00");
+        bookingService.createBooking(renter.getId(), bookingRequest(listing.getId(), 1, 3));
+
+        // Null filters must be treated as "no filter" - a null enum parameter in the
+        // IS NULL guard is the part most likely to fail at runtime rather than compile.
+        var unfiltered = adminService.listBookings(null, null, null, PageRequest.of(0, 20));
+        assertTrue(unfiltered.totalElements() >= 1);
+
+        var byStatus = adminService.listBookings(null, "REQUESTED", null, PageRequest.of(0, 20));
+        assertTrue(byStatus.content().stream().allMatch(b -> "REQUESTED".equals(b.status())));
+
+        var byType = adminService.listBookings(null, null, "PRODUCT", PageRequest.of(0, 20));
+        assertTrue(byType.totalElements() >= 1);
+
+        var byQuery = adminService.listBookings("Canon EOS", null, null, PageRequest.of(0, 20));
+        assertTrue(byQuery.content().stream().anyMatch(b -> b.listingTitle().contains("Canon")));
+
+        var noMatch = adminService.listBookings("zzz-no-such-listing", null, null, PageRequest.of(0, 20));
+        assertEquals(0, noMatch.totalElements());
+
+        // An unknown enum value must not 500; it is ignored like a blank filter.
+        var bogus = adminService.listBookings(null, "NOT_A_STATUS", null, PageRequest.of(0, 20));
+        assertTrue(bogus.totalElements() >= 1);
+
+        var listings = adminService.listListings("Canon", "ACTIVE", "PRODUCT", PageRequest.of(0, 20));
+        assertTrue(listings.totalElements() >= 1);
     }
 }

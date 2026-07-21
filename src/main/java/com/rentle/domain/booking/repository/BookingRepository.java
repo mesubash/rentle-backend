@@ -36,6 +36,24 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     long countByRenterIdAndStatus(UUID renterId, com.rentle.domain.booking.model.BookingStatus status);
 
+    /**
+     * Admin moderation search. Every filter is optional; the console previously pulled 100 rows
+     * and filtered them in the browser, which silently hid anything past the first page.
+     */
+    @org.springframework.data.jpa.repository.Query("""
+        SELECT b FROM Booking b
+        WHERE (:status IS NULL OR b.status = :status)
+          AND (:type IS NULL OR b.listing.type = :type)
+          AND (:q IS NULL
+               OR LOWER(b.listing.title) LIKE :q
+               OR LOWER(b.renter.fullName) LIKE :q
+               OR LOWER(b.listing.owner.fullName) LIKE :q)
+    """)
+    Page<Booking> adminSearch(@org.springframework.data.repository.query.Param("status") BookingStatus status,
+                              @org.springframework.data.repository.query.Param("type") com.rentle.domain.listing.model.ListingType type,
+                              @org.springframework.data.repository.query.Param("q") String q,
+                              Pageable pageable);
+
     Page<Booking> findByStatusAndFeeInvoiced(
             com.rentle.domain.booking.model.BookingStatus status, boolean feeInvoiced, Pageable pageable);
 

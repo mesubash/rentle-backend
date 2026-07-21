@@ -108,14 +108,40 @@ public class AdminService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<BookingResponse> listBookings(Pageable pageable) {
-        return PageResponse.from(bookingRepository.findAll(pageable), BookingResponse::from);
+    public PageResponse<BookingResponse> listBookings(String q, String status, String type, Pageable pageable) {
+        return PageResponse.from(
+                bookingRepository.adminSearch(
+                        parseEnum(com.rentle.domain.booking.model.BookingStatus.class, status),
+                        parseEnum(com.rentle.domain.listing.model.ListingType.class, type),
+                        likeOrNull(q),
+                        pageable),
+                BookingResponse::from);
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<ListingSummaryResponse> listListings(Pageable pageable) {
-        return PageResponse.from(listingRepository.findAll(pageable),
+    public PageResponse<ListingSummaryResponse> listListings(String q, String status, String type, Pageable pageable) {
+        return PageResponse.from(
+                listingRepository.adminSearch(
+                        parseEnum(ListingStatus.class, status),
+                        parseEnum(com.rentle.domain.listing.model.ListingType.class, type),
+                        likeOrNull(q),
+                        pageable),
                 l -> ListingSummaryResponse.from(l, null));
+    }
+
+    /** Blank filters mean "no filter"; an unknown value would otherwise 500 on valueOf. */
+    private static <E extends Enum<E>> E parseEnum(Class<E> type, String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Enum.valueOf(type, value.trim().toUpperCase());
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private static String likeOrNull(String q) {
+        if (q == null || q.isBlank()) return null;
+        return "%" + q.trim().toLowerCase() + "%";
     }
 
     @Transactional

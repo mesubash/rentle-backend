@@ -130,9 +130,12 @@ public class AdminController {
     @GetMapping("/bookings")
     @PreAuthorize("hasAuthority('" + PermissionKeys.BOOKING_BOOKING_READ + "')")
     public ApiResponse<PageResponse<BookingResponse>> bookings(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String type,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(adminService.listBookings(pageable(page, size)));
+        return ApiResponse.ok(adminService.listBookings(q, status, type, pageable(page, size)));
     }
 
     @GetMapping("/bookings/{id}")
@@ -144,9 +147,12 @@ public class AdminController {
     @GetMapping("/listings")
     @PreAuthorize("hasAuthority('" + PermissionKeys.LISTING_LISTING_READ + "')")
     public ApiResponse<PageResponse<ListingSummaryResponse>> listings(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String type,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(adminService.listListings(pageable(page, size)));
+        return ApiResponse.ok(adminService.listListings(q, status, type, pageable(page, size)));
     }
 
     @PutMapping("/listings/{id}/deactivate")
