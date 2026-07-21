@@ -13,6 +13,7 @@ public record BookingResponse(
         UUID listingId,
         String listingTitle,
         String listingType,
+        String coverImage,
         UUID ownerId,
         String ownerName,
         UUID renterId,
@@ -43,11 +44,17 @@ public record BookingResponse(
         Instant createdAt
 ) {
     public static BookingResponse from(Booking b) {
+        return from(b, null);
+    }
+
+    /** @param coverImage first listing image, resolved by the caller (the DTO has no repository). */
+    public static BookingResponse from(Booking b, String coverImage) {
         return new BookingResponse(
                 b.getId(),
                 b.getListing().getId(),
                 b.getListing().getTitle(),
                 b.getListing().getType().name(),
+                coverImage,
                 b.getListing().getOwner().getId(),
                 b.getListing().getOwner().getFullName(),
                 b.getRenter().getId(),

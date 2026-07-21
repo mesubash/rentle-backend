@@ -9,6 +9,7 @@ import com.rentle.domain.listing.model.Listing;
 import com.rentle.domain.listing.model.ListingStatus;
 import com.rentle.domain.listing.model.ListingType;
 import com.rentle.domain.listing.model.PriceUnit;
+import com.rentle.domain.listing.repository.ListingImageRepository;
 import com.rentle.domain.listing.repository.ListingRepository;
 import com.rentle.domain.listing.repository.ProductDetailRepository;
 import com.rentle.domain.listing.repository.ServiceDetailRepository;
@@ -54,6 +55,7 @@ public class BookingService {
 
     private final BookingRepository bookingRepository;
     private final ListingRepository listingRepository;
+    private final ListingImageRepository listingImageRepository;
     private final ProductDetailRepository productDetailRepository;
     private final ServiceDetailRepository serviceDetailRepository;
     private final UserRepository userRepository;
@@ -72,6 +74,7 @@ public class BookingService {
 
     public BookingService(BookingRepository bookingRepository,
                           ListingRepository listingRepository,
+                          ListingImageRepository listingImageRepository,
                           ProductDetailRepository productDetailRepository,
                           ServiceDetailRepository serviceDetailRepository,
                           UserRepository userRepository,
@@ -89,6 +92,7 @@ public class BookingService {
                           ApplicationEventPublisher eventPublisher) {
         this.bookingRepository = bookingRepository;
         this.listingRepository = listingRepository;
+        this.listingImageRepository = listingImageRepository;
         this.productDetailRepository = productDetailRepository;
         this.serviceDetailRepository = serviceDetailRepository;
         this.userRepository = userRepository;
@@ -406,7 +410,34 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public BookingResponse getDetail(UUID actorId, UUID bookingId) {
-        return BookingResponse.from(getBookingForParticipant(bookingId, actorId));
+        Booking booking = getBookingForParticipant(bookingId, actorId);
+        return BookingResponse.from(booking, coverFor(booking));
+    }
+
+    /** First image of a single booking's listing. */
+    private String coverFor(Booking booking) {
+        return coversFor(java.util.List.of(booking)).get(booking.getListing().getId());
+    }
+
+    /**
+     * Cover image per listing id for a page of bookings, in one query.
+     * Without this the client had to fetch the whole listing just to show a thumbnail.
+     */
+    private java.util.Map<UUID, String> coversFor(java.util.List<Booking> bookings) {
+        java.util.List<UUID> listingIds = bookings.stream()
+                .map(b -> b.getListing().getId()).distinct().toList();
+        if (listingIds.isEmpty()) return java.util.Map.of();
+        return listingImageRepository.findByListingIdInOrderBySortOrderAsc(listingIds).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        img -> img.getListing().getId(),
+                        com.rentle.domain.listing.model.ListingImage::getUrl,
+                        (first, second) -> first));
+    }
+
+    /** Map a page of bookings, resolving all cover images up front rather than per row. */
+    private PageResponse<BookingResponse> toPageWithCovers(org.springframework.data.domain.Page<Booking> page) {
+        java.util.Map<UUID, String> covers = coversFor(page.getContent());
+        return PageResponse.from(page, b -> BookingResponse.from(b, covers.get(b.getListing().getId())));
     }
 
     /** Completed bookings and their platform-fee status, for the admin invoicing view (P0-3). */
@@ -431,12 +462,12 @@ public class BookingService {
 
     @Transactional(readOnly = true)
     public PageResponse<BookingResponse> myBookingsAsRenter(UUID renterId, Pageable pageable) {
-        return PageResponse.from(bookingRepository.findByRenter(renterId, pageable), BookingResponse::from);
+        return toPageWithCovers(bookingRepository.findByRenter(renterId, pageable));
     }
 
     @Transactional(readOnly = true)
     public PageResponse<BookingResponse> myBookingsAsOwner(UUID ownerId, Pageable pageable) {
-        return PageResponse.from(bookingRepository.findByOwner(ownerId, pageable), BookingResponse::from);
+        return toPageWithCovers(bookingRepository.findByOwner(ownerId, pageable));
     }
 
     private void validateDates(Listing listing, CreateBookingRequest req) {
@@ -519,6 +550,6 @@ public class BookingService {
                 com.rentle.domain.platform.catalog.PermissionKeys.ORGANIZATION_BOOKING_MANAGE)) {
             throw new UnauthorizedException("You are not a member of this organization");
         }
-        return PageResponse.from(bookingRepository.findByProviderOrgId(orgId, pageable), BookingResponse::from);
+        return toPageWithCovers(bookingRepository.findByProviderOrgId(orgId, pageable));
     }
 }

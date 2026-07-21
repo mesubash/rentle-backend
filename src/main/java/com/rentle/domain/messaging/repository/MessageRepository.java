@@ -22,10 +22,16 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
         SELECT new com.rentle.domain.messaging.dto.ThreadSummary(
             m.booking.id,
             MAX(m.createdAt),
-            SUM(CASE WHEN m.isRead = false AND m.sender.id <> :userId THEN 1L ELSE 0L END))
+            SUM(CASE WHEN m.isRead = false AND m.sender.id <> :userId THEN 1L ELSE 0L END),
+            m.booking.listing.title,
+            m.booking.listing.owner.id,
+            m.booking.listing.owner.fullName,
+            m.booking.renter.fullName,
+            m.booking.status)
         FROM Message m
         WHERE m.booking.renter.id = :userId OR m.booking.listing.owner.id = :userId
-        GROUP BY m.booking.id
+        GROUP BY m.booking.id, m.booking.listing.title, m.booking.listing.owner.id,
+                 m.booking.listing.owner.fullName, m.booking.renter.fullName, m.booking.status
     """)
     List<ThreadSummary> threadSummaries(@Param("userId") UUID userId);
 
